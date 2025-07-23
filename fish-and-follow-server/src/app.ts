@@ -1,4 +1,3 @@
-import cors from 'cors';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import session from 'express-session';
@@ -15,7 +14,11 @@ import { usersRouter } from './routes/users.router';
 import { whatsappRouter } from './whatsapp-api/whatsapp.router';
 
 dotenv.config();
+import fs from 'fs';
+import cors from 'cors';
 
+
+const DATA_FILE = './resources.json';
 const app = express();
 const protectedRouter = express.Router();
 
@@ -27,8 +30,33 @@ const sessionSecret = process.env.SESSION_SECRET as CipherKey;
 
 const port = process.env.PORT || 3000;
 
+
+type Resource = {
+  id: number;
+  title: string;
+  url: string;
+  description: string;
+}
+
+app.use(cors());
+app.use(express.json());
+
+function loadResources(): Resource[] {
+  if (fs.existsSync(DATA_FILE)) {
+    const data = fs.readFileSync(DATA_FILE, 'utf-8');
+    return JSON.parse(data);
+  }
+  return [];
+}
+
+function saveResources(resources: Resource[]) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(resources, null, 2));
+}
+
+
+
 /**
- * This is a helathcheck for container monitoring (datadog).
+ * This is a healthcheck for container monitoring (datadog).
  * Just needs to respond with 200. Does not require auth.
  */
 app.get('/healthcheck', (_req, res: Response) => {
@@ -158,6 +186,25 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   });
 });
 
+app.get('/api/resources', (_req, res) => {
+  const resources = loadResources();
+  res.json(resources);
+});
+
+app.post('/api/resources', (req, res) => {
+  const { title, url, description } = req.body;
+  const resources = loadResources();
+  const newResource = {
+    id: resources.length + 1,
+    title,
+    url,
+    description
+  };
+  resources.push(newResource);
+  saveResources(resources);
+  res.status(201).json(newResource);
+});
+
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`API running at http://localhost:${port}`);
 });
