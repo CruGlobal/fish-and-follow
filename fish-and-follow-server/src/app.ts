@@ -1,23 +1,26 @@
+import bodyParser from "body-parser";
+import { CipherKey } from 'crypto';
 import dotenv from 'dotenv';
+import { eq } from 'drizzle-orm';
 import express, { Request, Response } from 'express';
 import session from 'express-session';
 import passport from 'passport';
-import bodyParser from "body-parser";
 import { Strategy } from 'passport-openidconnect';
+import { db, pool } from './db/client';
+import { user } from './db/schema';
 import { requireAuth } from './middleware/auth';
-import { CipherKey } from 'crypto';
 
-import { qrRouter } from './routes/qrCodeRouter';
+import cors from 'cors';
+import fs from 'fs';
+import { sendSMS } from "./middleware/sendSMS";
 import { contactsRouter } from './routes/contacts.router';
 import { followUpStatusRouter } from './routes/followUpStatus.router';
+import { qrRouter } from './routes/qrCodeRouter';
 import { rolesRouter } from './routes/roles.router';
 import { usersRouter } from './routes/users.router';
 import { whatsappRouter } from './whatsapp-api/whatsapp.router';
-import { sendSMS } from "./middleware/sendSMS";
 
 dotenv.config();
-import fs from 'fs';
-import cors from 'cors';
 
 
 
@@ -82,7 +85,7 @@ app.use(bodyParser.json());
 app.use(session({
   secret: sessionSecret,
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
   cookie: {
     secure: false, // Set to true in production with HTTPS
     httpOnly: true,
@@ -131,8 +134,36 @@ app.get('/signin', passport.authenticate('oidc'));
 
 app.get('/authorization-code/callback',
   passport.authenticate('oidc', { failureMessage: true, failWithError: true }),
-  (req: Request, res: Response) => {
-    // Redirect to your frontend after successful auth
+  async (req: Request, res: Response) => {
+    const oktaProfile = req.user as any;
+
+    const email = oktaProfile.username;
+    const username = oktaProfile.displayName || email;
+
+    // Try to find user in DB
+    let appUser = await db.query.user.findFirst({
+      where: (fields, { eq }) => eq(fields.email, email)
+    });
+
+    // If user doesn't exist, create one
+    if (!appUser) {
+      const newUser = await db.insert(user).values({
+        email,
+        username,
+        role: 'admin', // default role, adjust if needed
+        contactId: null // or create a contact record if required
+      }).returning(); 
+
+      appUser = newUser[0];
+      console.log(`✅ Created new user: ${email}`);
+    } else {
+      console.log(`🔄 Found existing user: ${email}`);
+    }
+
+    // Store user ID in session
+    (req.session as any).userId = appUser.id;
+
+    // Redirect to app
     res.redirect('http://localhost:5173/contacts');
   }
 );
@@ -162,10 +193,17 @@ app.get('/signout', (req: Request, res: Response, next: any) => {
       if (err) { return next(err); }
 
       // Redirect for GET requests
-      res.redirect('http://localhost:5173/');
+      res.json({
+        success: true,
+        message: 'Logged out successfully',
+        redirectUrl: 'http://localhost:5173/'
+      });
     });
   });
 });
+
+
+
 
 // Apply auth middleware to all routes in the protected router
 protectedRouter.use(requireAuth);
