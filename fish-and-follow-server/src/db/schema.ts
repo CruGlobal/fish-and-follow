@@ -2,11 +2,8 @@ import { relations } from 'drizzle-orm';
 import {
   boolean,
   integer,
-  json,
   pgEnum,
   pgTable,
-  text,
-  timestamp,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -35,12 +32,6 @@ export const user = pgTable('user', {
   username: varchar('username', { length: 255 }).notNull(), // e.g., 'admin', 'staff', 'student'
   email: varchar('email', { length: 255 }).notNull(),
   contactId: uuid('contact').references(() => contact.id),
-});
-
-export const userSessions = pgTable('user_sessions', {
-  sid: text('sid').primaryKey(),
-  sess: json('sess').notNull(),
-  expire: timestamp('expire', { precision: 6 }).notNull(),
 });
 
 // contact table

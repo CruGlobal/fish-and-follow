@@ -1,12 +1,13 @@
 import bodyParser from "body-parser";
 import { CipherKey } from 'crypto';
+import { RedisStore } from 'connect-redis';
 import dotenv from 'dotenv';
-import { eq } from 'drizzle-orm';
 import express, { Request, Response } from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import { Strategy } from 'passport-openidconnect';
-import { db, pool } from './db/client';
+import { createClient } from 'redis';
+import { db } from './db/client';
 import { user } from './db/schema';
 import { requireAuth } from './middleware/auth';
 
@@ -22,8 +23,6 @@ import { whatsappRouter } from './whatsapp-api/whatsapp.router';
 
 dotenv.config();
 
-
-
 const DATA_FILE = './resources.json';
 const app = express();
 const protectedRouter = express.Router();
@@ -35,7 +34,16 @@ const oktaDomain = process.env.OKTA_DOMAIN_URL;
 const sessionSecret = process.env.SESSION_SECRET as CipherKey;
 
 const port = process.env.PORT || 3000;
+const sessionRedisURL=`redis://${process.env.SESSION_REDIS_HOST}:${process.env.SESSION_REDIS_PORT}/${process.env.SESSION_REDIS_DB_INDEX}`
 
+const redisClient = createClient({
+  url: sessionRedisURL || "localhost:6379",
+});
+
+redisClient.on('error', (err) => console.error('Redis Client Error', err));
+
+// Connect the client
+redisClient.connect().catch(console.error);
 
 type Resource = {
   id: number;
@@ -59,8 +67,6 @@ function saveResources(resources: Resource[]) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(resources, null, 2));
 }
 
-
-
 /**
  * This is a healthcheck for container monitoring (datadog).
  * Just needs to respond with 200. Does not require auth.
@@ -83,6 +89,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 app.use(session({
+  store: new RedisStore({ client: redisClient }),
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
