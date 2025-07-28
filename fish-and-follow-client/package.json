@@ -6,7 +6,8 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "generate-pwa-assets": "pwa-assets-generator --preset minimal-2023 public/logo.png"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.14",
@@ -34,10 +35,12 @@
     "@types/node": "^20",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
+    "@vite-pwa/assets-generator": "^1.0.0",
     "tailwindcss": "^4.1.4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5.8.3",
     "vite": "^6.3.3",
+    "vite-plugin-pwa": "^1.0.2",
     "vite-tsconfig-paths": "^5.1.4"
   }
 }
