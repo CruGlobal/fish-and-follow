@@ -7,100 +7,95 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "~/components/ui/dialog";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import type { NewContactData, YearEnum, GenderEnum } from "~/lib/contactStore";
-import { yearOptions, genderOptions } from "~/lib/contactStore";
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import type { NewContactData, YearEnum, GenderEnum } from "../lib/contactStore";
 
 interface AddContactDialogProps {
-  onAddContact: (contact: NewContactData) => void;
+  onAddContact: (contactData: NewContactData) => void;
   trigger: React.ReactNode;
 }
 
-const initialFormData: NewContactData = {
-  firstName: "",
-  lastName: "",
-  phoneNumber: "",
-  email: "",
-  campus: "",
-  major: "",
-  year: "1",
-  isInterested: false,
-  gender: "prefer_not_to_say",
-};
-
 export function AddContactDialog({ onAddContact, trigger }: AddContactDialogProps) {
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState<NewContactData>(initialFormData);
-  const [errors, setErrors] = useState<Partial<Record<keyof NewContactData, string>>>({});
+  const [formData, setFormData] = useState<NewContactData>({
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    email: "",
+    campus: "",
+    major: "",
+    year: "1",
+    isInterested: true,
+    gender: "prefer_not_to_say",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleInputChange = (field: keyof NewContactData, value: string | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
-    
-    // Effacer l'erreur pour ce champ
-    if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: undefined,
-      }));
-    }
+  const resetForm = () => {
+    setFormData({
+      firstName: "",
+      lastName: "",
+      phoneNumber: "",
+      email: "",
+      campus: "",
+      major: "",
+      year: "1",
+      isInterested: true,
+      gender: "prefer_not_to_say",
+    });
+    setErrors({});
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof NewContactData, string>> = {};
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
 
     if (!formData.firstName.trim()) {
-      newErrors.firstName = "Le prénom est requis";
+      newErrors.firstName = "First name is required";
     }
 
     if (!formData.lastName.trim()) {
-      newErrors.lastName = "Le nom est requis";
+      newErrors.lastName = "Last name is required";
     }
 
     if (!formData.phoneNumber.trim()) {
-      newErrors.phoneNumber = "Le téléphone est requis";
-    } else if (!/^[\+]?[0-9\s\-\(\)]{8,}$/.test(formData.phoneNumber.trim())) {
-      newErrors.phoneNumber = "Format de téléphone invalide";
-    }
-
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-      newErrors.email = "Format d'email invalide";
+      newErrors.phoneNumber = "Phone number is required";
     }
 
     if (!formData.campus.trim()) {
-      newErrors.campus = "Le campus est requis";
+      newErrors.campus = "Campus is required";
     }
 
     if (!formData.major.trim()) {
-      newErrors.major = "La filière est requise";
+      newErrors.major = "Major is required";
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Invalid email format";
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    
+    try {
+      onAddContact(formData);
+      setOpen(false);
+      resetForm();
+    } catch (error) {
+      setErrors({ submit: "Failed to add contact" });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onAddContact(formData);
-    setFormData(initialFormData);
-    setErrors({});
-    setOpen(false);
-  };
-
-  const handleCancel = () => {
-    setFormData(initialFormData);
-    setErrors({});
-    setOpen(false);
   };
 
   return (
@@ -108,168 +103,218 @@ export function AddContactDialog({ onAddContact, trigger }: AddContactDialogProp
       <DialogTrigger asChild>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Ajouter un nouveau contact</DialogTitle>
+          <DialogTitle className="flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add New Contact
+          </DialogTitle>
           <DialogDescription>
-            Remplissez les informations du contact. Les champs marqués d'un * sont obligatoires.
+            Create a new contact with their information
           </DialogDescription>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Prénom */}
-            <div>
-              <Label htmlFor="firstName">Prénom *</Label>
-              <Input
-                id="firstName"
-                value={formData.firstName}
-                onChange={(e) => handleInputChange("firstName", e.target.value)}
-                className={errors.firstName ? "border-red-500" : ""}
-                placeholder="Jean"
-              />
-              {errors.firstName && (
-                <p className="text-sm text-red-500 mt-1">{errors.firstName}</p>
-              )}
-            </div>
 
-            {/* Nom */}
-            <div>
-              <Label htmlFor="lastName">Nom *</Label>
-              <Input
-                id="lastName"
-                value={formData.lastName}
-                onChange={(e) => handleInputChange("lastName", e.target.value)}
-                className={errors.lastName ? "border-red-500" : ""}
-                placeholder="Dupont"
-              />
-              {errors.lastName && (
-                <p className="text-sm text-red-500 mt-1">{errors.lastName}</p>
-              )}
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Personal Information */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Personal Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="firstName">
+                  First Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="firstName"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                  className={errors.firstName ? "border-red-500" : ""}
+                />
+                {errors.firstName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
+                )}
+              </div>
 
-          {/* Téléphone */}
-          <div>
-            <Label htmlFor="phoneNumber">Téléphone *</Label>
-            <Input
-              id="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={(e) => handleInputChange("phoneNumber", e.target.value)}
-              className={errors.phoneNumber ? "border-red-500" : ""}
-              placeholder="+33123456789"
-            />
-            {errors.phoneNumber && (
-              <p className="text-sm text-red-500 mt-1">{errors.phoneNumber}</p>
-            )}
-          </div>
+              <div>
+                <Label htmlFor="lastName">
+                  Last Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                  className={errors.lastName ? "border-red-500" : ""}
+                />
+                {errors.lastName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
+                )}
+              </div>
 
-          {/* Email */}
-          <div>
-            <Label htmlFor="email">Email (facultatif)</Label>
-            <Input
-              id="email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleInputChange("email", e.target.value)}
-              className={errors.email ? "border-red-500" : ""}
-              placeholder="jean.dupont@email.com"
-            />
-            {errors.email && (
-              <p className="text-sm text-red-500 mt-1">{errors.email}</p>
-            )}
-          </div>
+              <div>
+                <Label htmlFor="phoneNumber">
+                  Phone Number <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                  className={errors.phoneNumber ? "border-red-500" : ""}
+                  placeholder="+33123456789"
+                />
+                {errors.phoneNumber && (
+                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
+                )}
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Campus */}
-            <div>
-              <Label htmlFor="campus">Campus *</Label>
-              <Input
-                id="campus"
-                value={formData.campus}
-                onChange={(e) => handleInputChange("campus", e.target.value)}
-                className={errors.campus ? "border-red-500" : ""}
-                placeholder="Paris"
-              />
-              {errors.campus && (
-                <p className="text-sm text-red-500 mt-1">{errors.campus}</p>
-              )}
-            </div>
-
-            {/* Filière */}
-            <div>
-              <Label htmlFor="major">Filière *</Label>
-              <Input
-                id="major"
-                value={formData.major}
-                onChange={(e) => handleInputChange("major", e.target.value)}
-                className={errors.major ? "border-red-500" : ""}
-                placeholder="Informatique"
-              />
-              {errors.major && (
-                <p className="text-sm text-red-500 mt-1">{errors.major}</p>
-              )}
+              <div>
+                <Label htmlFor="email">
+                  Email (Optional)
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  className={errors.email ? "border-red-500" : ""}
+                  placeholder="contact@example.com"
+                />
+                {errors.email && (
+                  <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Année */}
-            <div>
-              <Label htmlFor="year">Année *</Label>
-              <select
-                id="year"
-                value={formData.year}
-                onChange={(e) => handleInputChange("year", e.target.value as YearEnum)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {yearOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Academic Information */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Academic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="campus">
+                  Campus <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="campus"
+                  value={formData.campus}
+                  onChange={(e) => setFormData(prev => ({ ...prev, campus: e.target.value }))}
+                  className={errors.campus ? "border-red-500" : ""}
+                  placeholder="Paris, Lyon, Marseille..."
+                />
+                {errors.campus && (
+                  <p className="mt-1 text-sm text-red-600">{errors.campus}</p>
+                )}
+              </div>
 
-            {/* Genre */}
-            <div>
-              <Label htmlFor="gender">Genre *</Label>
-              <select
-                id="gender"
-                value={formData.gender}
-                onChange={(e) => handleInputChange("gender", e.target.value as GenderEnum)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {genderOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <Label htmlFor="major">
+                  Major <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="major"
+                  value={formData.major}
+                  onChange={(e) => setFormData(prev => ({ ...prev, major: e.target.value }))}
+                  className={errors.major ? "border-red-500" : ""}
+                  placeholder="Computer Science, Marketing..."
+                />
+                {errors.major && (
+                  <p className="mt-1 text-sm text-red-600">{errors.major}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="year">Year</Label>
+                <select
+                  id="year"
+                  value={formData.year}
+                  onChange={(e) => setFormData(prev => ({ ...prev, year: e.target.value as YearEnum }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                  <option value="5">5th Year</option>
+                  <option value="Master">Master</option>
+                  <option value="PhD">PhD</option>
+                </select>
+              </div>
+
+              <div>
+                <Label htmlFor="gender">Gender</Label>
+                <select
+                  id="gender"
+                  value={formData.gender}
+                  onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value as GenderEnum }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* Est intéressé */}
-          <div className="flex items-center space-x-2">
-            <input
-              id="isInterested"
-              type="checkbox"
-              checked={formData.isInterested}
-              onChange={(e) => handleInputChange("isInterested", e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <Label htmlFor="isInterested">Est intéressé par nos services</Label>
+          {/* Interest */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Interest Level</h3>
+            <div className="flex items-center space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="interest"
+                  checked={formData.isInterested === true}
+                  onChange={() => setFormData(prev => ({ ...prev, isInterested: true }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-900">Interested</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="interest"
+                  checked={formData.isInterested === false}
+                  onChange={() => setFormData(prev => ({ ...prev, isInterested: false }))}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-900">Not Interested</span>
+              </label>
+            </div>
           </div>
 
-          <DialogFooter className="gap-2">
+          {errors.submit && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <p className="text-sm text-red-700">{errors.submit}</p>
+            </div>
+          )}
+
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={handleCancel}
+              onClick={() => setOpen(false)}
             >
-              Annuler
+              Cancel
             </Button>
-            <Button type="submit">
-              Ajouter le contact
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Adding...
+                </>
+              ) : (
+                "Add Contact"
+              )}
             </Button>
           </DialogFooter>
         </form>

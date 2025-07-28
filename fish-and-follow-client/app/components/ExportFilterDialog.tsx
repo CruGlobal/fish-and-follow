@@ -44,10 +44,43 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
   });
 
   const [exportFormat, setExportFormat] = useState<'csv' | 'excel'>('csv');
+  const [isExporting, setIsExporting] = useState(false);
 
   // Get unique values for filter options
   const uniqueCampuses = Array.from(new Set(contacts.map(c => c.campus))).sort();
   const uniqueMajors = Array.from(new Set(contacts.map(c => c.major))).sort();
+
+  // Validation helper functions
+  const validateExportData = () => {
+    const errors = [];
+    
+    if (!contacts || contacts.length === 0) {
+      errors.push("No contacts available");
+    }
+    
+    if (!['csv', 'excel'].includes(exportFormat)) {
+      errors.push("Invalid export format");
+    }
+    
+    return errors;
+  };
+
+  const getExportStats = (contactsToAnalyze: Contact[]) => {
+    return {
+      total: contactsToAnalyze.length,
+      withEmail: contactsToAnalyze.filter(c => c.email && c.email.trim()).length,
+      withPhone: contactsToAnalyze.filter(c => c.phoneNumber && c.phoneNumber.trim()).length,
+      interested: contactsToAnalyze.filter(c => c.isInterested).length,
+      byYear: contactsToAnalyze.reduce((acc, c) => {
+        acc[c.year] = (acc[c.year] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      byCampus: contactsToAnalyze.reduce((acc, c) => {
+        acc[c.campus] = (acc[c.campus] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    };
+  };
 
   // Apply all filters
   const getFilteredContacts = (): Contact[] => {
@@ -160,9 +193,114 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
     });
   };
 
-  const handleExport = () => {
-    onExport(filteredContacts, exportFormat);
-    onClose();
+  const handleExport = async () => {
+    // Set loading state
+    setIsExporting(true);
+    
+    try {
+      // JavaScript validation controls
+      
+      // 1. Check if we have any contacts to export
+      if (!contacts || contacts.length === 0) {
+        alert("⚠️ No contacts available to export.");
+        return;
+      }
+
+      // 2. Check if filtered contacts exist
+      if (!filteredContacts || filteredContacts.length === 0) {
+        const confirmExportEmpty = window.confirm(
+          "⚠️ No contacts match your current filters.\n\nWould you like to:\n• Click 'OK' to reset filters and export all contacts\n• Click 'Cancel' to modify your filters"
+        );
+        
+        if (!confirmExportEmpty) {
+          return; // User wants to modify filters
+        } else {
+          // Reset filters and export all contacts
+          resetFilters();
+          onExport(contacts, exportFormat);
+          onClose();
+          return;
+        }
+      }
+
+      // 3. Warning for large exports
+      if (filteredContacts.length > 1000) {
+        const confirmLargeExport = window.confirm(
+          `⚠️ Large Export Warning\n\nYou are about to export ${filteredContacts.length.toLocaleString()} contacts.\n\nThis may take a while and create a large file.\n\nDo you want to continue?`
+        );
+        
+        if (!confirmLargeExport) {
+          return;
+        }
+      }
+
+      // 4. Format validation
+      if (!['csv', 'excel'].includes(exportFormat)) {
+        alert("❌ Invalid export format selected. Please choose CSV or Excel.");
+        return;
+      }
+
+      // 5. Check for sensitive data warning
+      const hasSensitiveData = filteredContacts.some(contact => 
+        contact.email || contact.phoneNumber
+      );
+      
+      if (hasSensitiveData) {
+        const confirmSensitiveData = window.confirm(
+          "🔒 Privacy Notice\n\nThe export contains personal information (emails and phone numbers).\n\nPlease ensure you comply with data protection regulations and handle this data securely.\n\nDo you want to proceed with the export?"
+        );
+        
+        if (!confirmSensitiveData) {
+          return;
+        }
+      }
+
+      // 6. Final confirmation with export summary
+      const stats = getExportStats(filteredContacts);
+      const exportSummary = `📊 Export Summary:
+• ${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''}
+• Format: ${exportFormat.toUpperCase()}
+• Date: ${new Date().toLocaleDateString()}
+• With Email: ${stats.withEmail}
+• With Phone: ${stats.withPhone}
+• Interested: ${stats.interested}
+
+Active Filters:
+${filters.campus.length > 0 ? `• Campus: ${filters.campus.join(', ')}\n` : ''}${filters.major.length > 0 ? `• Major: ${filters.major.join(', ')}\n` : ''}${filters.year.length > 0 ? `• Year: ${filters.year.join(', ')}\n` : ''}${filters.gender.length > 0 ? `• Gender: ${filters.gender.join(', ')}\n` : ''}${filters.isInterested !== 'all' ? `• Interest: ${filters.isInterested === 'true' ? 'Interested' : 'Not Interested'}\n` : ''}${filters.searchTerm ? `• Search: "${filters.searchTerm}"\n` : ''}
+Ready to export?`;
+
+      const finalConfirm = window.confirm(exportSummary);
+      
+      if (!finalConfirm) {
+        return;
+      }
+
+      // 7. Execute export with loading simulation
+      console.log('🚀 Starting export...', {
+        count: filteredContacts.length,
+        format: exportFormat,
+        timestamp: new Date().toISOString(),
+        stats
+      });
+
+      // Simulate processing time for better UX
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      onExport(filteredContacts, exportFormat);
+      
+      // Success notification
+      setTimeout(() => {
+        alert(`✅ Export completed successfully!\n\n${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''} exported in ${exportFormat.toUpperCase()} format.\n\nFile should be downloading now.`);
+      }, 100);
+      
+      onClose();
+      
+    } catch (error) {
+      console.error('❌ Export failed:', error);
+      alert(`❌ Export failed!\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or contact support.`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -474,14 +612,33 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
             </Button>
             <Button 
               onClick={handleExport}
-              disabled={filteredContacts.length === 0}
-              className="bg-orange-600 hover:bg-orange-700 flex-1 sm:flex-none text-sm"
+              disabled={filteredContacts.length === 0 || isExporting}
+              className={`${
+                filteredContacts.length === 0 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-orange-600 hover:bg-orange-700'
+              } flex-1 sm:flex-none text-sm`}
               size="sm"
             >
-              <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Export {filteredContacts.length}
+              {isExporting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {filteredContacts.length === 0 
+                    ? 'No Contacts' 
+                    : `Export ${filteredContacts.length} ${exportFormat.toUpperCase()}`
+                  }
+                </>
+              )}
             </Button>
           </div>
         </div>

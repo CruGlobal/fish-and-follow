@@ -21,7 +21,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "staff"; // Seulement 2 rôles maintenant
+  role: "admin" | "staff"; 
   status: "active" | "inactive";
   lastLogin?: string;
   createdAt: string;

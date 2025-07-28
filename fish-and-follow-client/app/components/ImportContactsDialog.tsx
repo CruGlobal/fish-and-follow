@@ -44,7 +44,7 @@ export function ImportContactsDialog({ onImportContacts, trigger }: ImportContac
       // En réalité, il faudrait utiliser l'API Google Sheets
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Données d'exemple simulant un import réussi
+      // Example data simulating a successful import
       const mockImportedData: NewContactData[] = [
         {
           firstName: "Alice",

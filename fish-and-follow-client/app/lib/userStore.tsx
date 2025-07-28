@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
-// Types pour le système de rôles
-export type UserRole = "admin" | "staff"; // Seulement 2 rôles maintenant
+// Types for the role system
+export type UserRole = "admin" | "staff"; // Only 2 roles now
 
 export interface Permission {
   id: string;
@@ -31,134 +31,9 @@ export interface NewUserData {
   permissions: string[]; // Permissions désactivées mais gardées pour compatibilité
 }
 
-// Permissions disponibles dans le système (COMMENTÉES - Permissions désactivées)
-/*
-export const availablePermissions: Permission[] = [
-  // Gestion des contacts
-  {
-    id: "contacts.view",
-    name: "View contacts",
-    description: "View the contact list",
-    category: "Contacts"
-  },
-  {
-    id: "contacts.create",
-    name: "Create contacts",
-    description: "Add new contacts",
-    category: "Contacts"
-  },
-  {
-    id: "contacts.edit",
-    name: "Edit contacts",
-    description: "Edit contact information",
-    category: "Contacts"
-  },
-  {
-    id: "contacts.delete",
-    name: "Delete contacts",
-    description: "Delete contacts from the system",
-    category: "Contacts"
-  },
-  {
-    id: "contacts.import",
-    name: "Import contacts",
-    description: "Import from Google Sheets or CSV",
-    category: "Contacts"
-  },
-  {
-    id: "contacts.export",
-    name: "Export contacts",
-    description: "Export the contact list",
-    category: "Contacts"
-  },
-  
-  // Gestion des utilisateurs
-  {
-    id: "users.view",
-    name: "View users",
-    description: "View the user list",
-    category: "Users"
-  },
-  {
-    id: "users.create",
-    name: "Create users",
-    description: "Add new users",
-    category: "Users"
-  },
-  {
-    id: "users.edit",
-    name: "Edit users",
-    description: "Edit user information",
-    category: "Users"
-  },
-  {
-    id: "users.delete",
-    name: "Delete users",
-    description: "Delete users from the system",
-    category: "Users"
-  },
-  {
-    id: "users.roles",
-    name: "Manage roles",
-    description: "Assign and modify user roles",
-    category: "Users"
-  },
-  {
-    id: "users.permissions",
-    name: "Manage permissions",
-    description: "Assign specific permissions",
-    category: "Users"
-  },
-  
-  // Administration système
-  {
-    id: "admin.access",
-    name: "Admin access",
-    description: "Access administration panel",
-    category: "Administration"
-  },
-  {
-    id: "admin.settings",
-    name: "System settings",
-    description: "Modify system settings",
-    category: "Administration"
-  },
-  {
-    id: "admin.logs",
-    name: "View logs",
-    description: "View system logs",
-    category: "Administration"
-  },
-  {
-    id: "admin.backup",
-    name: "Backups",
-    description: "Manage system backups",
-    category: "Administration"
-  }
-];
-*/
-
 // Ajout d'une version vide pour les permissions désactivées
 export const availablePermissions: Permission[] = [];
 
-// Rôles prédéfinis avec leurs permissions par défaut (COMMENTÉ - Permissions désactivées)
-/*
-export const rolePermissions: Record<UserRole, string[]> = {
-  admin: [
-    // Toutes les permissions
-    "contacts.view", "contacts.create", "contacts.edit", "contacts.delete", "contacts.import", "contacts.export",
-    "users.view", "users.create", "users.edit", "users.delete", "users.roles", "users.permissions",
-    "admin.access", "admin.settings", "admin.logs", "admin.backup"
-  ],
-  staff: [
-    // Gestion complète des contacts + vue des utilisateurs
-    "contacts.view", "contacts.create", "contacts.edit", "contacts.delete", "contacts.import", "contacts.export",
-    "users.view",
-    "admin.access"
-  ]
-  // user: Rôle supprimé - seulement admin et staff maintenant
-};
-*/
 
 // Version simplifiée sans permissions détaillées
 export const rolePermissions: Record<UserRole, string[]> = {
@@ -324,10 +199,6 @@ export function useUsers() {
     });
   };
 
-  // Fonction de mise à jour des permissions (COMMENTÉE - Permissions désactivées)
-  // const updateUserPermissions = (id: string, permissions: string[]) => {
-  //   return updateUser(id, { permissions });
-  // };
 
   const clearError = () => setError(null);
 

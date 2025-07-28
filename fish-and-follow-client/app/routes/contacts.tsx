@@ -19,7 +19,38 @@ export default function Contacts() {
   const { contacts, addContact, exportContacts, updateContact, deleteContact, error } = useContacts();
 
   const handleExport = (filteredContacts: Contact[], format: 'csv' | 'excel') => {
-    exportContacts(filteredContacts, format);
+    // Additional validation before actual export
+    if (!filteredContacts || filteredContacts.length === 0) {
+      console.warn('⚠️ No contacts to export');
+      return;
+    }
+    
+    try {
+      console.log(`📊 Exporting ${filteredContacts.length} contacts in ${format} format`);
+      exportContacts(filteredContacts, format);
+    } catch (error) {
+      console.error('❌ Export error in contacts page:', error);
+      alert('Failed to export contacts. Please try again.');
+    }
+  };
+
+  const handleExportClick = () => {
+    // Pre-export validation
+    if (!contacts || contacts.length === 0) {
+      alert('⚠️ No contacts available to export.\n\nAdd some contacts first before exporting.');
+      return;
+    }
+    
+    // Check if user has permission to export (you can add more validation here)
+    const canExport = true; // Add your permission logic here
+    
+    if (!canExport) {
+      alert('❌ You don\'t have permission to export contacts.');
+      return;
+    }
+    
+    console.log('🚀 Opening export dialog with', contacts.length, 'contacts');
+    setShowExportDialog(true);
   };
 
   const stats = {
@@ -136,7 +167,7 @@ export default function Contacts() {
               </div>
               <div className="flex space-x-3">
                 <Button 
-                  onClick={() => setShowExportDialog(true)}
+                  onClick={handleExportClick}
                   className="bg-orange-600 hover:bg-orange-700 text-white"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

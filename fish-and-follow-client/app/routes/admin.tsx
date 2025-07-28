@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { PageHeaderCentered } from "~/components/PageHeaderCentered";
-import { UsersTable } from "~/components/UsersTable";
+import type { Route } from "./+types/admin";
+
 import { ExportFilterDialog } from "~/components/ExportFilterDialog";
 import { useUsers } from "~/lib/userStore";
 import { useContacts } from "~/lib/contactStore";
 import type { Contact } from "~/lib/contactStore";
-import type { Route } from "./+types/admin";
+
+import { PageHeaderCentered } from "~/components/PageHeaderCentered";
+import { UsersTable } from "~/components/UsersTable";
+
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -16,7 +19,7 @@ export function meta({ }: Route.MetaArgs) {
 
 export default function Admin() {
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const { users, updateUser, deleteUser, toggleUserStatus, updateUserRole, /* updateUserPermissions */ } = useUsers();
+  const { users, updateUser, deleteUser, toggleUserStatus, updateUserRole } = useUsers();
   const { contacts, exportContacts } = useContacts();
 
   const handleExport = (filteredContacts: Contact[], format: 'csv' | 'excel') => {
@@ -43,8 +46,8 @@ export default function Admin() {
     <div className="min-h-screen bg-gray-50 py-2 sm:py-8">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
         <PageHeaderCentered
-          title="Admin Panel"
-          description="Manage users and monitor your system activity"
+          title="Administration"
+          description="Manage users, permissions and monitor your system activity"
         />
 
         {/* Dashboard Statistics - Mobile Optimized */}
@@ -193,7 +196,7 @@ export default function Admin() {
                 onDeleteUser={deleteUser}
                 onToggleStatus={toggleUserStatus}
                 onUpdateRole={updateUserRole}
-                // onUpdatePermissions={updateUserPermissions} // Permissions désactivées
+                // onUpdatePermissions={updateUserPermissions} // Permissions disabled
               />
             </div>
           </div>
