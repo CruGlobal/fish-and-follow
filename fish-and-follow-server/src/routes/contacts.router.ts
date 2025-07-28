@@ -145,12 +145,13 @@ contactsRouter.get('/:id', async (req, res) => {
 // POST Create contact
 contactsRouter.post('/', async (req, res) => {
   const { firstName, lastName, phoneNumber, email, campus, 
-    major, year, isInterested, gender, followUpStatusNumber } = req.body;
+    major, year, isInterested, gender, followUpStatusNumber, orgId } = req.body;
     
   try {
     const inserted = await db.insert(contact).values({ firstName, lastName, 
         phoneNumber, email, campus, major, year, isInterested, gender, 
-        followUpStatusNumber }).returning();
+        followUpStatusNumber, orgId, }).returning();
+        
     res.status(201).json(inserted[0]);
   } catch (error) {
     console.error(error);
@@ -162,13 +163,13 @@ contactsRouter.post('/', async (req, res) => {
 contactsRouter.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { firstName, lastName, phoneNumber, email, campus, 
-    major, year, isInterested, gender, followUpStatusNumber } = req.body;
+    major, year, isInterested, gender, followUpStatusNumber, orgId } = req.body;
 
   try {
     const updated = await db
       .update(contact)
       .set({ firstName, lastName, phoneNumber, email, campus, 
-        major, year, isInterested, gender, followUpStatusNumber })
+        major, year, isInterested, gender, followUpStatusNumber, orgId })
       .where(eq(contact.id, id))
       .returning();
 

@@ -1,6 +1,7 @@
 {
   "name": "fish-and-follow-server",
   "version": "1.0.0",
+  "description": ""
   "main": "index.js",
   "scripts": {
     "start": "node dist/app.js",
@@ -22,7 +23,6 @@
     "drizzle-orm": "^0.44.3",
     "express": "^5.1.0",
     "express-session": "^1.18.1",
-    "globals": "^16.3.0",
     "passport": "^0.7.0",
     "passport-openidconnect": "^0.1.2",
     "pg": "^8.16.3",
@@ -54,5 +54,4 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.37.0"
   },
-  "description": ""
 }
