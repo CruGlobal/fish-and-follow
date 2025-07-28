@@ -15,7 +15,7 @@
   "packageManager": "pnpm@10.12.4",
   "dependencies": {
     "body-parser": "^2.2.0",
-    "@types/pg": "^8.15.4",
+    "connect-redis": "^9.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "drizzle-kit": "^0.31.4",
@@ -28,7 +28,8 @@
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
     "whatsapp": "0.0.5-Alpha",
-    "twilio": "^5.7.3"
+    "twilio": "^5.7.3",
+    "redis": "^5.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",

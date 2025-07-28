@@ -1,25 +1,27 @@
+import bodyParser from "body-parser";
+import { CipherKey } from 'crypto';
+import { RedisStore } from 'connect-redis';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import session from 'express-session';
 import passport from 'passport';
-import bodyParser from "body-parser";
 import { Strategy } from 'passport-openidconnect';
+import { createClient } from 'redis';
+import { db } from './db/client';
+import { user } from './db/schema';
 import { requireAuth } from './middleware/auth';
-import { CipherKey } from 'crypto';
 
-import { qrRouter } from './routes/qrCodeRouter';
+import cors from 'cors';
+import fs from 'fs';
+import { sendSMS } from "./middleware/sendSMS";
 import { contactsRouter } from './routes/contacts.router';
 import { followUpStatusRouter } from './routes/followUpStatus.router';
+import { qrRouter } from './routes/qrCodeRouter';
 import { rolesRouter } from './routes/roles.router';
 import { usersRouter } from './routes/users.router';
 import { whatsappRouter } from './whatsapp-api/whatsapp.router';
-import { sendSMS } from "./middleware/sendSMS";
 
 dotenv.config();
-import fs from 'fs';
-import cors from 'cors';
-
-
 
 const DATA_FILE = './resources.json';
 const app = express();
@@ -42,7 +44,16 @@ const siteUrl = process.env.BASE_URL ?? devFrontend;
 const callbackURL = process.env.OKTA_REDIRECT_URI ?? `${devBackend}/authorization-code/callback`;
 
 const port = process.env.PORT || 3000;
+const sessionRedisURL = `redis://${process.env.SESSION_REDIS_HOST}:${process.env.SESSION_REDIS_PORT}/${process.env.SESSION_REDIS_DB_INDEX}`
 
+const redisClient = createClient({
+  url: sessionRedisURL || "localhost:6379",
+});
+
+redisClient.on('error', (err) => console.error('Redis Client Error', err));
+
+// Connect the client
+redisClient.connect().catch(console.error);
 
 type Resource = {
   id: number;
@@ -65,8 +76,6 @@ function loadResources(): Resource[] {
 function saveResources(resources: Resource[]) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(resources, null, 2));
 }
-
-
 
 /**
  * This is a healthcheck for container monitoring (datadog).
@@ -93,9 +102,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 app.use(session({
+  store: new RedisStore({ client: redisClient }),
   secret: sessionSecret,
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
   cookie: {
     secure: false, // Set to true in production with HTTPS
     httpOnly: true,
@@ -144,8 +154,36 @@ app.get('/signin', passport.authenticate('oidc'));
 
 app.get('/authorization-code/callback',
   passport.authenticate('oidc', { failureMessage: true, failWithError: true }),
-  (req: Request, res: Response) => {
-    // Redirect to your frontend after successful auth
+  async (req: Request, res: Response) => {
+    const oktaProfile = req.user as any;
+
+    const email = oktaProfile.username;
+    const username = oktaProfile.displayName || email;
+
+    // Try to find user in DB
+    let appUser = await db.query.user.findFirst({
+      where: (fields, { eq }) => eq(fields.email, email)
+    });
+
+    // If user doesn't exist, create one
+    if (!appUser) {
+      const newUser = await db.insert(user).values({
+        email,
+        username,
+        role: 'admin', // default role, adjust if needed
+        contactId: null // or create a contact record if required
+      }).returning();
+
+      appUser = newUser[0];
+      console.log(`✅ Created new user: ${email}`);
+    } else {
+      console.log(`🔄 Found existing user: ${email}`);
+    }
+
+    // Store user ID in session
+    (req.session as any).userId = appUser.id;
+
+    // Redirect to app
     res.redirect(`${siteUrl}/contacts`);
   }
 );
@@ -175,10 +213,17 @@ app.get('/signout', (req: Request, res: Response, next: any) => {
       if (err) { return next(err); }
 
       // Redirect for GET requests
-      res.redirect(siteUrl);
+      res.json({
+        success: true,
+        message: 'Logged out successfully',
+        redirectUrl: siteUrl,
+      });
     });
   });
 });
+
+
+
 
 // Apply auth middleware to all routes in the protected router
 protectedRouter.use(requireAuth);

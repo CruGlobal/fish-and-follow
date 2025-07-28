@@ -12,8 +12,7 @@ const databasePassword = process.env.DB_ENV_POSTGRESQL_PASS;
 
 const databaseURL = `postgres://${databaseUser}:${databasePassword}@${databaseAddress}/${databaseName}`;
 
-
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: databaseURL,
 });
 
