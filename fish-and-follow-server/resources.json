@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "title": "GodTools App",
+    "description": "Learn how you can share your faith with others",
+    "url": "https://godtoolsapp.com/"
+  },
+  {
+    "id": 2,
+    "title": "Knowing God Personally",
+    "description": "Would you like to know God personally?",
+    "url": "https://www.cru.org/us/en/how-to-know-god/would-you-like-to-know-god-personally.html"
+  },
+  {
+    "id": 3,
+    "title": "Satisfied",
+    "description": "What role does the Holy Spirit play in your life?",
+    "url": "https://www.cru.org/content/dam/cru/legacy/2012/02/satisfied-original.pdf"
+  }
+ ]

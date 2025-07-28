@@ -27,7 +27,8 @@
     "passport-openidconnect": "^0.1.2",
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
-    "whatsapp": "0.0.5-Alpha"
+    "whatsapp": "0.0.5-Alpha",
+    "twilio": "^5.7.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",

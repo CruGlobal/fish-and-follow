@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import session from 'express-session';
 import passport from 'passport';
+import bodyParser from "body-parser";
 import { Strategy } from 'passport-openidconnect';
 import { requireAuth } from './middleware/auth';
 import { CipherKey } from 'crypto';
@@ -12,10 +13,12 @@ import { followUpStatusRouter } from './routes/followUpStatus.router';
 import { rolesRouter } from './routes/roles.router';
 import { usersRouter } from './routes/users.router';
 import { whatsappRouter } from './whatsapp-api/whatsapp.router';
+import { sendSMS } from "./middleware/sendSMS";
 
 dotenv.config();
 import fs from 'fs';
 import cors from 'cors';
+
 
 
 const DATA_FILE = './resources.json';
@@ -74,6 +77,7 @@ app.use(cors({
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
 app.use(session({
   secret: sessionSecret,
@@ -203,6 +207,22 @@ app.post('/api/resources', (req, res) => {
   resources.push(newResource);
   saveResources(resources);
   res.status(201).json(newResource);
+});
+
+app.post("/api/send-sms", async (req, res) => {
+  const { to, message } = req.body;
+
+  if (!to || !message) {
+    return res.status(400).json({ error: "Missing 'to' or 'message' in request body" });
+  }
+
+  try {
+  await sendSMS(to, message);
+  res.status(200).json({ success: true, message: "SMS sent!" });
+} catch (error: any) {
+  console.error("SMS sending failed:", error);
+  res.status(500).json({ error: "Failed to send SMS", details: error.message });
+}
 });
 
 app.listen(port, () => {
