@@ -1,92 +1,64 @@
 import { useState } from "react";
 import type { Route } from "./+types/contacts";
+import { ContactsTable } from "../components/ContactsTable";
+import { AddContactDialog } from "../components/AddContactDialog";
+import { ExportFilterDialog } from "../components/ExportFilterDialog";
+import { useContacts } from "../lib/contactStore";
+import { Button } from "../components/ui/button";
+import type { Contact } from "../lib/contactStore";
 
 export function meta({ }: Route.MetaArgs) {
   return [
-    { title: "Contacts Management - Fish and Follow" },
-    { name: "description", content: "Manage all contacts" },
+    { title: "Contacts - Fish and Follow" },
+    { name: "description", content: "Manage all your contacts" },
   ];
 }
 
-interface Contact {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  company?: string;
-  message?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Mock data for demonstration
-const mockContacts: Contact[] = [
-  {
-    id: "1",
-    firstName: "John",
-    lastName: "Doe",
-    email: "john.doe@example.com",
-    phone: "+1-555-123-4567",
-    company: "Acme Corp",
-    message: "Interested in your services",
-    createdAt: "2025-01-15T10:30:00Z",
-    updatedAt: "2025-01-15T10:30:00Z",
-  },
-  {
-    id: "2",
-    firstName: "Jane",
-    lastName: "Smith",
-    email: "jane.smith@example.com",
-    phone: "+1-555-987-6543",
-    company: "Tech Solutions",
-    message: "Would like to schedule a demo",
-    createdAt: "2025-01-14T14:20:00Z",
-    updatedAt: "2025-01-14T14:20:00Z",
-  },
-];
-
 export default function Contacts() {
-  const [contacts, setContacts] = useState<Contact[]>(mockContacts);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const { contacts, addContact, exportContacts, updateContact, deleteContact, error } = useContacts();
 
-  const filteredContacts = contacts.filter(
-    (contact) =>
-      contact.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.company?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleDeleteContact = (id: string) => {
-    if (confirm("Are you sure you want to delete this contact?")) {
-      setContacts(contacts.filter((contact) => contact.id !== id));
-      if (selectedContact?.id === id) {
-        setSelectedContact(null);
-      }
+  const handleExport = (filteredContacts: Contact[], format: 'csv' | 'excel') => {
+    // Additional validation before actual export
+    if (!filteredContacts || filteredContacts.length === 0) {
+      console.warn('⚠️ No contacts to export');
+      return;
+    }
+    
+    try {
+      console.log(`📊 Exporting ${filteredContacts.length} contacts in ${format} format`);
+      exportContacts(filteredContacts, format);
+    } catch (error) {
+      console.error('❌ Export error in contacts page:', error);
+      alert('Failed to export contacts. Please try again.');
     }
   };
 
-  const handleEditContact = (contact: Contact) => {
-    setSelectedContact(contact);
-    setIsEditMode(true);
+  const handleExportClick = () => {
+    // Pre-export validation
+    if (!contacts || contacts.length === 0) {
+      alert('⚠️ No contacts available to export.\n\nAdd some contacts first before exporting.');
+      return;
+    }
+    
+    // Check if user has permission to export (you can add more validation here)
+    const canExport = true; // Add your permission logic here
+    
+    if (!canExport) {
+      alert('❌ You don\'t have permission to export contacts.');
+      return;
+    }
+    
+    console.log('🚀 Opening export dialog with', contacts.length, 'contacts');
+    setShowExportDialog(true);
   };
 
-  const handleViewContact = (contact: Contact) => {
-    setSelectedContact(contact);
-    setIsEditMode(false);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const stats = {
+    total: contacts.length,
+    interested: contacts.filter(c => c.isInterested).length,
+    notInterested: contacts.filter(c => !c.isInterested).length,
+    maleCount: contacts.filter(c => c.gender === 'male').length,
+    femaleCount: contacts.filter(c => c.gender === 'female').length,
   };
 
   return (
@@ -94,262 +66,160 @@ export default function Contacts() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Contacts</h1>
-              <p className="mt-2 text-gray-600">
-                Manage and view all submitted contacts
+          <h1 className="text-3xl font-bold text-gray-900">Contact Management</h1>
+          <p className="mt-2 text-gray-600">
+            Manage all your contacts with inline editing and quick add
+          </p>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Total</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Interested</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.interested}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Not Interested</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.notInterested}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Male</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.maleCount}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Female</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.femaleCount}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-medium text-gray-900">Contact List</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  All your contacts with inline editing capability
+                </p>
+              </div>
+              <div className="flex space-x-3">
+                <Button 
+                  onClick={handleExportClick}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Smart Export
+                </Button>
+                <AddContactDialog
+                  onAddContact={addContact}
+                  trigger={
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Contact
+                    </Button>
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          <div className="p-6">
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">
+                💡 <strong>Tip:</strong> Click on any cell to edit inline. 
+                Changes are saved automatically.
               </p>
             </div>
-            <div className="flex space-x-4">
-              <a
-                href="/admin"
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                >
-                Admin Panel
-              </a>
-            </div>
+
+            <ContactsTable
+              contacts={contacts}
+              onUpdateContact={updateContact}
+              onDeleteContact={deleteContact}
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Contacts List */}
-          <div className="lg:col-span-2">
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-medium text-gray-900">
-                    All Contacts ({filteredContacts.length})
-                  </h2>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search contacts..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="block w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    />
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg
-                        className="h-5 w-5 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="divide-y divide-gray-200">
-                {filteredContacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className={`px-6 py-4 hover:bg-gray-50 cursor-pointer ${selectedContact?.id === contact.id ? "bg-blue-50" : ""
-                      }`}
-                    onClick={() => handleViewContact(contact)}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <h3 className="text-sm font-medium text-gray-900">
-                            {contact.firstName} {contact.lastName}
-                          </h3>
-                          {contact.company && (
-                            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              {contact.company}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600">
-                          {contact.email}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-500">
-                          {contact.phone}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-400">
-                          Created: {formatDate(contact.createdAt)}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2 ml-4">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditContact(contact);
-                          }}
-                          className="text-blue-600 hover:text-blue-900 text-sm font-medium"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteContact(contact.id);
-                          }}
-                          className="text-red-600 hover:text-red-900 text-sm font-medium"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {filteredContacts.length === 0 && (
-                  <div className="px-6 py-12 text-center">
-                    <svg
-                      className="mx-auto h-12 w-12 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                    <h3 className="mt-4 text-sm font-medium text-gray-900">
-                      No contacts found
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {searchTerm
-                        ? "Try adjusting your search terms"
-                        : "No contacts have been submitted yet"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Details */}
-          <div className="lg:col-span-1">
-            {selectedContact ? (
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Contact Details
-                  </h3>
-                  <button
-                    onClick={() => setSelectedContact(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path
-                        fillRule="evenodd"
-                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                {isEditMode ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-500 mb-4">Edit mode - Contact editing form would go here</p>
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={() => setIsEditMode(false)}
-                        className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-400"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsEditMode(false);
-                          // TODO: Implement save functionality
-                        }}
-                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-500">Name</label>
-                      <p className="mt-1 text-sm text-gray-900">
-                        {selectedContact.firstName} {selectedContact.lastName}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-500">Email</label>
-                      <p className="mt-1 text-sm text-gray-900">{selectedContact.email}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-500">Phone</label>
-                      <p className="mt-1 text-sm text-gray-900">{selectedContact.phone}</p>
-                    </div>
-                    {selectedContact.company && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-500">Company</label>
-                        <p className="mt-1 text-sm text-gray-900">{selectedContact.company}</p>
-                      </div>
-                    )}
-                    {selectedContact.message && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-500">Message</label>
-                        <p className="mt-1 text-sm text-gray-900">{selectedContact.message}</p>
-                      </div>
-                    )}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-500">Created</label>
-                      <p className="mt-1 text-sm text-gray-900">
-                        {formatDate(selectedContact.createdAt)}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-500">Last Updated</label>
-                      <p className="mt-1 text-sm text-gray-900">
-                        {formatDate(selectedContact.updatedAt)}
-                      </p>
-                    </div>
-                    <div className="pt-4 border-t border-gray-200">
-                      <button
-                        onClick={() => handleEditContact(selectedContact)}
-                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
-                      >
-                        Edit Contact
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white shadow rounded-lg p-6">
-                <div className="text-center text-gray-500">
-                  <svg
-                    className="mx-auto h-12 w-12 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  <h3 className="mt-4 text-sm font-medium text-gray-900">
-                    No contact selected
-                  </h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Click on a contact to view details
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Export Filter Dialog */}
+        {showExportDialog && (
+          <ExportFilterDialog
+            contacts={contacts}
+            onExport={handleExport}
+            onClose={() => setShowExportDialog(false)}
+          />
+        )}
       </div>
     </div>
   );
