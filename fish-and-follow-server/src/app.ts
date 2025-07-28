@@ -38,7 +38,7 @@ if (!process.env.OKTA_DOMAIN_URL) {
   throw new Error("Missing Okta Domain URL");
 }
 
-const oktaDomain = isProduction ? process.env.OKTA_DOMAIN_URL : `https://${process.env.OKTA_DOMAIN_URL}`;
+const oktaDomain = isProduction ? process.env.OKTA_DOMAIN_URL : `https://${process.env.OKTA_DOMAIN_URL}/oauth2`;
 const sessionSecret = process.env.SESSION_SECRET as CipherKey;
 const siteUrl = process.env.BASE_URL ?? devFrontend;
 const callbackURL = process.env.OKTA_REDIRECT_URI ?? `${devBackend}/authorization-code/callback`;
@@ -119,9 +119,9 @@ app.use(passport.session());
 // Passport configuration
 passport.use('oidc', new Strategy({
   issuer: oktaDomain,
-  authorizationURL: `${oktaDomain}/oauth2/v1/authorize`,
-  tokenURL: `${oktaDomain}/oauth2/v1/token`,
-  userInfoURL: `${oktaDomain}/oauth2/v1/userinfo`,
+  authorizationURL: `${oktaDomain}/v1/authorize`,
+  tokenURL: `${oktaDomain}/v1/token`,
+  userInfoURL: `${oktaDomain}/v1/userinfo`,
   clientID: oktaClientID || '',
   clientSecret: oktaClientSecret || '',
   callbackURL,
