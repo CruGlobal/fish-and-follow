@@ -40,7 +40,7 @@ export default function Resources() {
   };
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/resources")
+    fetch("http://localhost:3000/resources")
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch resources");
         return res.json();

@@ -235,7 +235,7 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   });
 });
 
-app.get('/api/resources', (_req, res) => {
+app.get('/resources', (_req, res) => {
   const resources = loadResources();
   res.json(resources);
 });
