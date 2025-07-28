@@ -1,7 +1,7 @@
 {
   "name": "fish-and-follow-server",
   "version": "1.0.0",
-  "description": ""
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node dist/app.js",
@@ -53,5 +53,5 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.37.0"
-  },
+  }
 }
