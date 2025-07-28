@@ -23,6 +23,7 @@ RUN pnpm run build
 FROM back-end-base AS final
 LABEL "com.datadoghq.ad.logs"='[{"source": "node", "service": "fish-and-follow", "log_processing_rules": [{"type": "exclude_at_match", "name": "exclude_heath_checks", "pattern": "/healthcheck"}]}]'
 RUN pnpm install --prod
+ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 COPY --from=front-end /app/build/client /app/public

@@ -27,14 +27,24 @@ const DATA_FILE = './resources.json';
 const app = express();
 const protectedRouter = express.Router();
 
+const isProduction = process.env.NODE_ENV === 'production';
+const devFrontend = 'http://localhost:5173';
+const devBackend = 'http://localhost:3000'
+
 const oktaClientID = process.env.OKTA_CLIENT_ID;
 const oktaClientSecret = process.env.OKTA_CLIENT_SECRET;
-const oktaDomain = process.env.OKTA_DOMAIN_URL;
 
+if (!process.env.OKTA_DOMAIN_URL) {
+  throw new Error("Missing Okta Domain URL");
+}
+
+const oktaDomain = isProduction ? process.env.OKTA_DOMAIN_URL : `https://${process.env.OKTA_DOMAIN_URL}/oauth2`;
 const sessionSecret = process.env.SESSION_SECRET as CipherKey;
+const siteUrl = process.env.BASE_URL ?? devFrontend;
+const callbackURL = process.env.OKTA_REDIRECT_URI ?? `${devBackend}/authorization-code/callback`;
 
 const port = process.env.PORT || 3000;
-const sessionRedisURL=`redis://${process.env.SESSION_REDIS_HOST}:${process.env.SESSION_REDIS_PORT}/${process.env.SESSION_REDIS_DB_INDEX}`
+const sessionRedisURL = `redis://${process.env.SESSION_REDIS_HOST}:${process.env.SESSION_REDIS_PORT}/${process.env.SESSION_REDIS_DB_INDEX}`
 
 const redisClient = createClient({
   url: sessionRedisURL || "localhost:6379",
@@ -75,13 +85,16 @@ app.get('/healthcheck', (_req, res: Response) => {
   res.status(200).send("Ok");
 });
 
-// Proper CORS configuration
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+if (!isProduction) {
+  // Proper CORS configuration
+  app.use(cors({
+    origin: [devFrontend, devBackend],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+}
+
 
 // Body parsing middleware
 app.use(express.json());
@@ -105,13 +118,13 @@ app.use(passport.session());
 
 // Passport configuration
 passport.use('oidc', new Strategy({
-  issuer: `https://${oktaDomain}`,
-  authorizationURL: `https://${oktaDomain}/oauth2/v1/authorize`,
-  tokenURL: `https://${oktaDomain}/oauth2/v1/token`,
-  userInfoURL: `https://${oktaDomain}/oauth2/v1/userinfo`,
+  issuer: oktaDomain,
+  authorizationURL: `${oktaDomain}/v1/authorize`,
+  tokenURL: `${oktaDomain}/v1/token`,
+  userInfoURL: `${oktaDomain}/v1/userinfo`,
   clientID: oktaClientID || '',
   clientSecret: oktaClientSecret || '',
-  callbackURL: 'http://localhost:3000/authorization-code/callback',
+  callbackURL,
   scope: 'openid profile'
 }, (issuer: any, profile: any, done: any) => {
   return done(null, profile);
@@ -159,7 +172,7 @@ app.get('/authorization-code/callback',
         username,
         role: 'admin', // default role, adjust if needed
         contactId: null // or create a contact record if required
-      }).returning(); 
+      }).returning();
 
       appUser = newUser[0];
       console.log(`✅ Created new user: ${email}`);
@@ -171,7 +184,7 @@ app.get('/authorization-code/callback',
     (req.session as any).userId = appUser.id;
 
     // Redirect to app
-    res.redirect('http://localhost:5173/contacts');
+    res.redirect(`${siteUrl}/contacts`);
   }
 );
 
@@ -186,7 +199,7 @@ app.post('/signout', (req: Request, res: Response, next: any) => {
       res.json({
         success: true,
         message: 'Logged out successfully',
-        redirectUrl: 'http://localhost:5173/'
+        redirectUrl: siteUrl
       });
     });
   });
@@ -203,7 +216,7 @@ app.get('/signout', (req: Request, res: Response, next: any) => {
       res.json({
         success: true,
         message: 'Logged out successfully',
-        redirectUrl: 'http://localhost:5173/'
+        redirectUrl: siteUrl,
       });
     });
   });
@@ -262,12 +275,12 @@ app.post("/api/send-sms", async (req, res) => {
   }
 
   try {
-  await sendSMS(to, message);
-  res.status(200).json({ success: true, message: "SMS sent!" });
-} catch (error: any) {
-  console.error("SMS sending failed:", error);
-  res.status(500).json({ error: "Failed to send SMS", details: error.message });
-}
+    await sendSMS(to, message);
+    res.status(200).json({ success: true, message: "SMS sent!" });
+  } catch (error: any) {
+    console.error("SMS sending failed:", error);
+    res.status(500).json({ error: "Failed to send SMS", details: error.message });
+  }
 });
 
 app.listen(port, () => {
