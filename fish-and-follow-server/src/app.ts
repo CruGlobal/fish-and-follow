@@ -18,10 +18,21 @@ dotenv.config();
 const app = express();
 const protectedRouter = express.Router();
 
+const isProduction = process.env.NODE_ENV === 'production';
+const devFrontend = 'http://localhost:5173';
+const devBackend = 'http://localhost:3000'
+
 const oktaClientID = process.env.OKTA_CLIENT_ID;
 const oktaClientSecret = process.env.OKTA_CLIENT_SECRET;
-const oktaDomain = process.env.OKTA_DOMAIN_URL;
+
+if (!process.env.OKTA_DOMAIN_URL) {
+  throw new Error("Missing Okta Domain URL");
+}
+
+const oktaDomain = isProduction ? process.env.OKTA_DOMAIN_URL : `https://${process.env.OKTA_DOMAIN_URL}`;
 const sessionSecret = process.env.SESSION_SECRET as CipherKey;
+const siteUrl = process.env.BASE_URL ?? devFrontend;
+const callbackURL = process.env.OKTA_REDIRECT_URI ?? `${devBackend}/authorization-code/callback`;
 
 const port = process.env.PORT || 3000;
 
@@ -33,13 +44,16 @@ app.get('/healthcheck', (_req, res: Response) => {
   res.status(200).send("Ok");
 });
 
-// Proper CORS configuration
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+if (!isProduction) {
+  // Proper CORS configuration
+  app.use(cors({
+    origin: [devFrontend, devBackend],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+}
+
 
 // Body parsing middleware
 app.use(express.json());
@@ -61,13 +75,13 @@ app.use(passport.session());
 
 // Passport configuration
 passport.use('oidc', new Strategy({
-  issuer: `https://${oktaDomain}`,
-  authorizationURL: `https://${oktaDomain}/oauth2/v1/authorize`,
-  tokenURL: `https://${oktaDomain}/oauth2/v1/token`,
-  userInfoURL: `https://${oktaDomain}/oauth2/v1/userinfo`,
+  issuer: oktaDomain,
+  authorizationURL: `${oktaDomain}/oauth2/v1/authorize`,
+  tokenURL: `${oktaDomain}/oauth2/v1/token`,
+  userInfoURL: `${oktaDomain}/oauth2/v1/userinfo`,
   clientID: oktaClientID || '',
   clientSecret: oktaClientSecret || '',
-  callbackURL: 'http://localhost:3000/authorization-code/callback',
+  callbackURL,
   scope: 'openid profile'
 }, (issuer: any, profile: any, done: any) => {
   return done(null, profile);
@@ -99,7 +113,7 @@ app.get('/authorization-code/callback',
   passport.authenticate('oidc', { failureMessage: true, failWithError: true }),
   (req: Request, res: Response) => {
     // Redirect to your frontend after successful auth
-    res.redirect('http://localhost:5173/contacts');
+    res.redirect(`${siteUrl}/contacts`);
   }
 );
 
@@ -114,7 +128,7 @@ app.post('/signout', (req: Request, res: Response, next: any) => {
       res.json({
         success: true,
         message: 'Logged out successfully',
-        redirectUrl: 'http://localhost:5173/'
+        redirectUrl: siteUrl
       });
     });
   });
@@ -128,7 +142,7 @@ app.get('/signout', (req: Request, res: Response, next: any) => {
       if (err) { return next(err); }
 
       // Redirect for GET requests
-      res.redirect('http://localhost:5173/');
+      res.redirect(siteUrl);
     });
   });
 });
