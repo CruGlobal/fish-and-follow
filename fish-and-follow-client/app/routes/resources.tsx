@@ -1,6 +1,5 @@
 "use-client";
-import { useEffect, useState } from "react"; // if not already imported
-import axios from "axios"; // install with `npm install axios` if needed
+import { useEffect, useState } from "react";
 import { PageHeaderCentered } from "../components/PageHeaderCentered";
 import { InfoCardGrid } from "../components/InfoCardGrid";
 import type { FormEvent } from "react";
@@ -22,11 +21,16 @@ export default function Resources() {
     e.preventDefault();
     try {
       const newResource = { title, url, description };
-      const res = await axios.post(
-        "http://localhost:3000/api/resources",
-        newResource
-      );
-      setResources((prev) => [...(prev || []), res.data]); // Update list
+      const res = await fetch("http://localhost:3000/api/resources", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newResource),
+      });
+      if (!res.ok) throw new Error("Failed to add resource");
+      const data = await res.json();
+      setResources((prev) => [...(prev || []), data]); // Update list
       setTitle("");
       setUrl("");
       setDescription("");
@@ -36,9 +40,12 @@ export default function Resources() {
   };
 
   useEffect(() => {
-    axios
-      .get("http://localhost:3000/api/resources") // Your backend endpoint
-      .then((res) => setResources(res.data))
+    fetch("http://localhost:3000/api/resources")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch resources");
+        return res.json();
+      })
+      .then((data) => setResources(data))
       .catch((err) => console.error("Error fetching resources:", err));
   }, []);
 
