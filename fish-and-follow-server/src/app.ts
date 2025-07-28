@@ -1,8 +1,8 @@
-import cors from 'cors';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import session from 'express-session';
 import passport from 'passport';
+import bodyParser from "body-parser";
 import { Strategy } from 'passport-openidconnect';
 import { requireAuth } from './middleware/auth';
 import { CipherKey } from 'crypto';
@@ -12,9 +12,16 @@ import { contactsRouter } from './routes/contacts.router';
 import { followUpStatusRouter } from './routes/followUpStatus.router';
 import { rolesRouter } from './routes/roles.router';
 import { usersRouter } from './routes/users.router';
+import { whatsappRouter } from './whatsapp-api/whatsapp.router';
+import { sendSMS } from "./middleware/sendSMS";
 
 dotenv.config();
+import fs from 'fs';
+import cors from 'cors';
 
+
+
+const DATA_FILE = './resources.json';
 const app = express();
 const protectedRouter = express.Router();
 
@@ -36,8 +43,33 @@ const callbackURL = process.env.OKTA_REDIRECT_URI ?? `${devBackend}/authorizatio
 
 const port = process.env.PORT || 3000;
 
+
+type Resource = {
+  id: number;
+  title: string;
+  url: string;
+  description: string;
+}
+
+app.use(cors());
+app.use(express.json());
+
+function loadResources(): Resource[] {
+  if (fs.existsSync(DATA_FILE)) {
+    const data = fs.readFileSync(DATA_FILE, 'utf-8');
+    return JSON.parse(data);
+  }
+  return [];
+}
+
+function saveResources(resources: Resource[]) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(resources, null, 2));
+}
+
+
+
 /**
- * This is a helathcheck for container monitoring (datadog).
+ * This is a healthcheck for container monitoring (datadog).
  * Just needs to respond with 200. Does not require auth.
  */
 app.get('/healthcheck', (_req, res: Response) => {
@@ -58,6 +90,7 @@ if (!isProduction) {
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
 app.use(session({
   secret: sessionSecret,
@@ -156,6 +189,7 @@ protectedRouter.use('/users', usersRouter);
 protectedRouter.use('/follow-up-status', followUpStatusRouter);
 protectedRouter.use('/roles', rolesRouter);
 protectedRouter.use('/qr', qrRouter);
+protectedRouter.use('/whatsapp', whatsappRouter);
 
 // Mount the protected router
 app.use('/api', protectedRouter);
@@ -169,6 +203,41 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   });
 });
 
+app.get('/api/resources', (_req, res) => {
+  const resources = loadResources();
+  res.json(resources);
+});
+
+app.post('/api/resources', (req, res) => {
+  const { title, url, description } = req.body;
+  const resources = loadResources();
+  const newResource = {
+    id: resources.length + 1,
+    title,
+    url,
+    description
+  };
+  resources.push(newResource);
+  saveResources(resources);
+  res.status(201).json(newResource);
+});
+
+app.post("/api/send-sms", async (req, res) => {
+  const { to, message } = req.body;
+
+  if (!to || !message) {
+    return res.status(400).json({ error: "Missing 'to' or 'message' in request body" });
+  }
+
+  try {
+    await sendSMS(to, message);
+    res.status(200).json({ success: true, message: "SMS sent!" });
+  } catch (error: any) {
+    console.error("SMS sending failed:", error);
+    res.status(500).json({ error: "Failed to send SMS", details: error.message });
+  }
+});
+
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`API running at http://localhost:${port}`);
 });

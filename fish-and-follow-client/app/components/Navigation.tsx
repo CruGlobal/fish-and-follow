@@ -20,6 +20,7 @@ export function Navigation({
   const authenticatedLinks = [
     { href: "/contacts", label: "Contacts" },
     { href: "/admin", label: "Admin" },
+    { href: "/bulkmessaging", label: "Bulk Messaging" },
   ];
 
   const isCurrentPath = (path: string) => currentPath === path;
