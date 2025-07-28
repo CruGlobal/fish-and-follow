@@ -18,7 +18,7 @@ import { contactsRouter } from './routes/contacts.router';
 import { followUpStatusRouter } from './routes/followUpStatus.router';
 import { organizationRouter } from './routes/organization.router';
 import { qrRouter } from './routes/qrCodeRouter';
-import { rolesRouter } from './routes/roles.router';
+import { roleRouter } from './routes/role.router';
 import { usersRouter } from './routes/users.router';
 import { whatsappRouter } from './whatsapp-api/whatsapp.router';
 
@@ -234,7 +234,7 @@ protectedRouter.use('/contacts', contactsRouter);
 protectedRouter.use('/users', usersRouter);
 protectedRouter.use('/follow-up-status', followUpStatusRouter);
 protectedRouter.use('/organization', organizationRouter);
-protectedRouter.use('/roles', rolesRouter);
+protectedRouter.use('/role', roleRouter);
 protectedRouter.use('/qr', qrRouter);
 protectedRouter.use('/whatsapp', whatsappRouter);
 
