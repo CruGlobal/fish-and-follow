@@ -29,9 +29,16 @@ export const GenderEnum = pgEnum('gender_enum', ['male', 'female']);
 export const user = pgTable('user', {
   id: uuid('id').primaryKey().defaultRandom(),
   role: RoleEnum('role').notNull(),
-  username: varchar('username', { length: 255 }).notNull(), // e.g., 'admin', 'staff', 'student'
+  username: varchar('username', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   contactId: uuid('contact').references(() => contact.id),
+});
+
+export const organization = pgTable('organization', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    country: varchar('country', { length: 255 }).notNull(),
+    strategy: varchar('strategy', { length: 255 }).notNull(),
 });
 
 // contact table
@@ -48,12 +55,23 @@ export const contact = pgTable('contact', {
   gender: GenderEnum('gender').notNull(),
 
   followUpStatusNumber: integer('follow_up_status').references(() => followUpStatus.number),
+  orgId: uuid('org_id').notNull().references(() => organization.id),
 });
 
 export const followUpStatus = pgTable('follow_up_status', {
   number: integer('number').primaryKey(),
   description: varchar('description', { length: 255 }).notNull(),
 });
+
+export const role = pgTable('role', {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    orgId: uuid('org_id').notNull().references(() => organization.id),
+    userId: uuid('user_id').notNull().references(() => user.id),
+
+    roleType: RoleEnum('role_type').notNull(),
+});
+
 
 // Define relations
 export const userRelations = relations(user, ({ one }) => ({
@@ -63,13 +81,33 @@ export const userRelations = relations(user, ({ one }) => ({
   }),
 }));
 
-export const contactsRelations = relations(contact, ({ one, many }) => ({
-  followUpStatus: many(followUpStatus),
+export const contactRelations = relations(contact, ({ one }) => ({
+  followUpStatus: one(followUpStatus, {
+    fields: [contact.followUpStatusNumber],
+    references: [followUpStatus.number],
+  }),
+  organization: one(organization, {
+    fields: [contact.orgId],
+    references: [organization.id],
+  }),
 }));
 
-export const followUpStatusRelations = relations(followUpStatus, ({ one }) => ({
-  contact: one(contact, {
-    fields: [followUpStatus.number],
-    references: [contact.followUpStatusNumber],
+export const followUpStatusRelations = relations(followUpStatus, ({ many }) => ({
+  contacts: many(contact),
+}));
+
+export const organizationRelations = relations(organization, ({ many }) => ({
+  roles: many(role),
+  contacts: many(contact),
+}));
+
+export const roleRelations = relations(role, ({ one }) => ({
+  organization: one(organization, {
+    fields: [role.orgId],
+    references: [organization.id],
+  }),
+  user: one(user, {
+    fields: [role.userId],
+    references: [user.id],
   }),
 }));
