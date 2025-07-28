@@ -7,26 +7,26 @@ export const organizationRouter = Router();
 
 // GET all organizations
 organizationRouter.get('/', async (_req, res) => {
-//   try {
+  try {
     const organizations = await db.select().from(organization);
     res.json(organizations);
-//   } catch (error) {
-    // console.error('Fetch organizations error:', error);
-    // res.status(500).json({ error: 'Failed to fetch organizations' });
-//   }
+  } catch (error) {
+    console.error('Fetch organizations error:', error);
+    res.status(500).json({ error: 'Failed to fetch organizations' });
+  }
 });
 
 // GET organization by ID
 organizationRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
-//   try {
+  try {
     const result = await db.select().from(organization).where(eq(organization.id, id));
     if (result.length === 0) return res.status(404).json({ error: 'Organization not found' });
     res.json(result[0]);
-//   } catch (error) {
-    // console.error('Fetch organization by ID error:', error);
-    // res.status(500).json({ error: 'Failed to fetch organization' });
-//   }
+  } catch (error) {
+    console.error('Fetch organization by ID error:', error);
+    res.status(500).json({ error: 'Failed to fetch organization' });
+  }
 });
 
 // POST create organization
