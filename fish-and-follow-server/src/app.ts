@@ -1,6 +1,6 @@
 import bodyParser from "body-parser";
-import { CipherKey } from 'crypto';
 import { RedisStore } from 'connect-redis';
+import { CipherKey } from 'crypto';
 import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import session from 'express-session';
@@ -8,8 +8,8 @@ import passport from 'passport';
 import { Strategy } from 'passport-openidconnect';
 import { createClient } from 'redis';
 import { db } from './db/client';
-import { user } from './db/schema';
-import { requireAuth } from './middleware/auth';
+import { organization, role, user } from './db/schema';
+import { requireAuth, requireRole } from './middleware/auth';
 
 import cors from 'cors';
 import fs from 'fs';
@@ -19,6 +19,7 @@ import { followUpStatusRouter } from './routes/followUpStatus.router';
 import { qrRouter } from './routes/qrCodeRouter';
 import { roleRouter } from './routes/role.router';
 import { usersRouter } from './routes/users.router';
+import { Roles } from "./types/roles";
 import { whatsappRouter } from './whatsapp-api/whatsapp.router';
 
 dotenv.config();
@@ -42,6 +43,7 @@ const oktaDomain = isProduction ? process.env.OKTA_DOMAIN_URL : `https://${proce
 const sessionSecret = process.env.SESSION_SECRET as CipherKey;
 const siteUrl = process.env.BASE_URL ?? devFrontend;
 const callbackURL = process.env.OKTA_REDIRECT_URI ?? `${devBackend}/authorization-code/callback`;
+const oktaIssuer = isProduction ? oktaDomain : `https://${process.env.OKTA_DOMAIN_URL}`
 
 const port = process.env.PORT || 3000;
 const sessionRedisURL = `redis://${process.env.SESSION_REDIS_HOST}:${process.env.SESSION_REDIS_PORT}/${process.env.SESSION_REDIS_DB_INDEX}`
@@ -52,7 +54,6 @@ const redisClient = createClient({
 
 redisClient.on('error', (err) => console.error('Redis Client Error', err));
 
-// Connect the client
 redisClient.connect().catch(console.error);
 
 type Resource = {
@@ -118,7 +119,7 @@ app.use(passport.session());
 
 // Passport configuration
 passport.use('oidc', new Strategy({
-  issuer: oktaDomain,
+  issuer: oktaIssuer,
   authorizationURL: `${oktaDomain}/v1/authorize`,
   tokenURL: `${oktaDomain}/v1/token`,
   userInfoURL: `${oktaDomain}/v1/userinfo`,
@@ -143,45 +144,75 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 app.get('/auth/status', (req: Request, res: Response) => {
+  const isAuthenticated = req.isAuthenticated?.() || false;
+  const user = req.user ? {
+    ...req.user,
+    orgId: (req.session as any).orgId,
+    role: (req.session as any).userRole || null
+  } : null;
+
   res.json({
-    authenticated: req.isAuthenticated(),
-    user: req.user || null
+    authenticated: isAuthenticated,
+    user
   });
 });
 
-// Auth routes (public)
 app.get('/signin', passport.authenticate('oidc'));
 
 app.get('/authorization-code/callback',
-  passport.authenticate('oidc', { failureMessage: true, failWithError: true }),
+  passport.authenticate('oidc', { failureMessage: false, failWithError: true }),
   async (req: Request, res: Response) => {
     const oktaProfile = req.user as any;
 
     const email = oktaProfile.username;
     const username = oktaProfile.displayName || email;
 
-    // Try to find user in DB
+    const defaultOrg = await getDefaultOrganization();
+
     let appUser = await db.query.user.findFirst({
       where: (fields, { eq }) => eq(fields.email, email)
     });
 
-    // If user doesn't exist, create one
     if (!appUser) {
-      const newUser = await db.insert(user).values({
+      const [newUser] = await db.insert(user).values({
         email,
         username,
-        role: 'admin', // default role, adjust if needed
-        contactId: null // or create a contact record if required
+        contactId: null
       }).returning();
 
-      appUser = newUser[0];
+      appUser = newUser;
+      
+      // Create role association
+      await db.insert(role).values({
+        userId: appUser.id,
+        orgId: defaultOrg.id,
+        role: 'admin'
+      });
+
       console.log(`✅ Created new user: ${email}`);
     } else {
-      console.log(`🔄 Found existing user: ${email}`);
+      // Check if user already has a role in the default org
+      const existingRole = await db.query.role.findFirst({
+        where: (fields, { and, eq }) => and(
+          eq(fields.userId, appUser!.id),
+          eq(fields.orgId, defaultOrg.id)
+        )
+      });
+
+      // If no role exists, create one
+      if (!existingRole) {
+        await db.insert(role).values({
+          userId: appUser.id,
+          orgId: defaultOrg.id,
+          role: Roles.ADMIN
+        });
+      }
     }
 
-    // Store user ID in session
+    // Store user ID and org ID in session
     (req.session as any).userId = appUser.id;
+    (req.session as any).orgId = defaultOrg.id;
+    (req.session as any).userRole = Roles.ADMIN;
 
     // Redirect to app
     res.redirect(`${siteUrl}/contacts`);
@@ -222,7 +253,22 @@ app.get('/signout', (req: Request, res: Response, next: any) => {
   });
 });
 
+async function getDefaultOrganization() {
+  let defaultOrg = await db.query.organization.findFirst({
+    where: (fields, { eq }) => eq(fields.name, 'Default')
+  });
+  
+  if (!defaultOrg) {
+    const [newOrg] = await db.insert(organization).values({
+      name: 'Default',
+      country: 'Kyrgyz Republic',
+      strategy: 'Tech'
+    }).returning();
+    defaultOrg = newOrg;
+  }
 
+  return defaultOrg;
+}
 
 
 // Apply auth middleware to all routes in the protected router
@@ -230,7 +276,7 @@ protectedRouter.use(requireAuth);
 
 // Protected routes
 protectedRouter.use('/contacts', contactsRouter);
-protectedRouter.use('/users', usersRouter);
+protectedRouter.use('/users', requireRole([Roles.ADMIN]), usersRouter);
 protectedRouter.use('/follow-up-status', followUpStatusRouter);
 protectedRouter.use('/role', roleRouter);
 protectedRouter.use('/qr', qrRouter);
@@ -240,7 +286,7 @@ protectedRouter.use('/whatsapp', whatsappRouter);
 app.use('/api', protectedRouter);
 
 // Error handling middleware
-app.use((err: any, req: Request, res: Response, next: any) => {
+app.use((err: any, req: Request, res: Response) => {
   console.error('Error:', err);
   res.status(500).json({
     error: 'Internal server error',

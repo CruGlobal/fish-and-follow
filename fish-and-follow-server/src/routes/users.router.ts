@@ -1,7 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { db } from '../db/client';
 import { user } from '../db/schema';
-import { eq } from 'drizzle-orm';
 
 export const usersRouter = Router();
 
@@ -24,8 +24,9 @@ usersRouter.post('/', async (req, res) => {
   const { role, username, email, contactId } = req.body;
   
   try {
-    const inserted = await db.insert(user).values({ role, username, email, contactId }).returning();
-    res.status(201).json(inserted[0]);
+    const insertedUser = await db.insert(user).values({ username, email, contactId }).returning();
+    const insertedRole = await db.insert(role).values({role, userId: insertedUser[0].id})
+    res.status(201).json({ user: {...insertedUser[0]}, role: insertedRole});
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create user' });
@@ -40,11 +41,13 @@ usersRouter.put('/:id', async (req, res) => {
   try {
     const updated = await db
       .update(user)
-      .set({ role, username, email, contactId })
+      .set({ username, email, contactId })
       .where(eq(user.id, id))
       .returning();
 
-    res.json(updated[0]);
+    const updatedRole = await db.update(role).set({role}).where(eq(role.userId, id))
+
+    res.json({user: {...updated, role: updatedRole}});
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user' });
   }

@@ -8,7 +8,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-export const RoleEnum = pgEnum('role_enum', ['admin', 'user']);
+export const RoleEnum = pgEnum('role_enum', ['admin', 'staff']);
 
 export const YearEnum = pgEnum('year_enum', [
   '1st_year',
@@ -28,7 +28,6 @@ export const GenderEnum = pgEnum('gender_enum', ['male', 'female']);
 
 export const user = pgTable('user', {
   id: uuid('id').primaryKey().defaultRandom(),
-  role: RoleEnum('role').notNull(),
   username: varchar('username', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   contactId: uuid('contact').references(() => contact.id),
@@ -53,7 +52,6 @@ export const contact = pgTable('contact', {
   year: YearEnum('year').notNull(),
   isInterested: boolean('is_interested').notNull(),
   gender: GenderEnum('gender').notNull(),
-
   followUpStatusNumber: integer('follow_up_status').references(() => followUpStatus.number),
   orgId: uuid('org_id').notNull().references(() => organization.id),
 });
@@ -65,20 +63,20 @@ export const followUpStatus = pgTable('follow_up_status', {
 
 export const role = pgTable('role', {
     id: uuid('id').primaryKey().defaultRandom(),
-
     orgId: uuid('org_id').notNull().references(() => organization.id),
     userId: uuid('user_id').notNull().references(() => user.id),
-
-    roleType: RoleEnum('role_type').notNull(),
+    role: RoleEnum('role').notNull(), 
 });
 
 
 // Define relations
-export const userRelations = relations(user, ({ one }) => ({
+export const userRelations = relations(user, ({ one, many }) => ({
   contact: one(contact, {
     fields: [user.contactId],
     references: [contact.id],
   }),
+  roles: many(role),
+  organizations: many(organization),
 }));
 
 export const contactRelations = relations(contact, ({ one }) => ({
@@ -98,6 +96,7 @@ export const followUpStatusRelations = relations(followUpStatus, ({ many }) => (
 
 export const organizationRelations = relations(organization, ({ many }) => ({
   roles: many(role),
+  users: many(user),
   contacts: many(contact),
 }));
 
