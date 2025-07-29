@@ -35,6 +35,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        {/* This should get automatically injected but, it seems reactrouter conflicts with VitePWA
+        see: https://github.com/vite-pwa/vite-plugin-pwa/issues/809 */}
+        <link rel="manifest" href="/manifest.webmanifest" />
       </head>
       <body className="bg-gray-50">
         <AuthProvider>
