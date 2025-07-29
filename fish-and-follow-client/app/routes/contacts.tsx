@@ -3,9 +3,12 @@ import type { Route } from "./+types/contacts";
 import { ContactsTable } from "../components/ContactsTable";
 import { AddContactDialog } from "../components/AddContactDialog";
 import { ExportFilterDialog } from "../components/ExportFilterDialog";
-import { useContacts } from "../lib/contactStore";
+import { useContacts } from "../hooks/useContacts";
+import { useContactStats } from "../hooks/useContactStats";
+import { useFollowUpStatuses, getStatusDescription } from "../hooks/useFollowUpStatuses";
 import { Button } from "../components/ui/button";
-import type { Contact } from "../lib/contactStore";
+import type { Contact } from "~/types/contact";
+import { ImportContactsDialog } from "~/components/ImportContactsDialog";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -16,13 +19,59 @@ export function meta({ }: Route.MetaArgs) {
 
 export default function Contacts() {
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const { contacts, addContact, exportContacts, updateContact, deleteContact, error } = useContacts();
+  const { 
+    contacts, 
+    isLoading, 
+    isFilterLoading,
+    filters, 
+    updateFilters, 
+    addContact, 
+    exportContacts, 
+    updateContact, 
+    deleteContact, 
+    importContacts,
+    error 
+  } = useContacts();
+
+  // Use real contact stats from database
+  const { 
+    stats: dbStats, 
+    isLoading: isStatsLoading, 
+    error: statsError, 
+    refreshStats 
+  } = useContactStats();
+
+  const handleAddContact = async (contactData: any) => {
+    await addContact(contactData);
+    // Refresh stats after adding a contact
+    await refreshStats();
+  };
+
+  const handleUpdateContact = async (id: string, updates: Partial<Contact>) => {
+    await updateContact(id, updates);
+    // Refresh stats after updating a contact (in case gender/interest changed)
+    await refreshStats();
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    await deleteContact(id);
+    // Refresh stats after deleting a contact
+    await refreshStats();
+  };
+
+  const handleImportContacts = async (contactsToImport: any[]) => {
+    const result = await importContacts(contactsToImport);
+    // Refresh stats after importing contacts
+    await refreshStats();
+    return result;
+  };
 
   const handleExport = (filteredContacts: Contact[], format: 'csv' | 'excel') => {
     exportContacts(filteredContacts, format);
   };
 
-  const stats = {
+  // Use database stats for the statistics cards, fallback to filtered stats if not available
+  const stats = dbStats || {
     total: contacts.length,
     interested: contacts.filter(c => c.isInterested).length,
     notInterested: contacts.filter(c => !c.isInterested).length,
@@ -47,14 +96,24 @@ export default function Contacts() {
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                  {isStatsLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
                 </div>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+                <p className="text-sm font-medium text-gray-500">Total Contacts</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {isStatsLoading ? (
+                    <span className="inline-block animate-pulse bg-gray-200 rounded w-8 h-8"></span>
+                  ) : (
+                    stats.total
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -63,14 +122,24 @@ export default function Contacts() {
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
+                  {isStatsLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Interested</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.interested}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {isStatsLoading ? (
+                    <span className="inline-block animate-pulse bg-gray-200 rounded w-8 h-8"></span>
+                  ) : (
+                    stats.interested
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -79,14 +148,24 @@ export default function Contacts() {
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
+                  {isStatsLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Not Interested</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.notInterested}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {isStatsLoading ? (
+                    <span className="inline-block animate-pulse bg-gray-200 rounded w-8 h-8"></span>
+                  ) : (
+                    stats.notInterested
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -95,14 +174,24 @@ export default function Contacts() {
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                  </svg>
+                  {isStatsLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Male</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.maleCount}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {isStatsLoading ? (
+                    <span className="inline-block animate-pulse bg-gray-200 rounded w-8 h-8"></span>
+                  ) : (
+                    stats.maleCount
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -111,14 +200,24 @@ export default function Contacts() {
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                  </svg>
+                  {isStatsLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Female</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.femaleCount}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {isStatsLoading ? (
+                    <span className="inline-block animate-pulse bg-gray-200 rounded w-8 h-8"></span>
+                  ) : (
+                    stats.femaleCount
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -135,6 +234,17 @@ export default function Contacts() {
                 </p>
               </div>
               <div className="flex space-x-3">
+                <ImportContactsDialog
+                  onImportContacts={importContacts}
+                  trigger={
+                    <Button className="bg-green-600 hover:bg-green-700 text-white">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Import Contacts
+                    </Button>
+                  }
+                />
                 <Button 
                   onClick={() => setShowExportDialog(true)}
                   className="bg-orange-600 hover:bg-orange-700 text-white"
@@ -145,7 +255,7 @@ export default function Contacts() {
                   Smart Export
                 </Button>
                 <AddContactDialog
-                  onAddContact={addContact}
+                  onAddContact={handleAddContact}
                   trigger={
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,8 +285,12 @@ export default function Contacts() {
 
             <ContactsTable
               contacts={contacts}
-              onUpdateContact={updateContact}
-              onDeleteContact={deleteContact}
+              isLoading={isLoading}
+              isFilterLoading={isFilterLoading}
+              filters={filters}
+              onUpdateFilters={updateFilters}
+              onUpdateContact={handleUpdateContact}
+              onDeleteContact={handleDeleteContact}
             />
           </div>
         </div>

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import type { Route } from "./+types/admin";
+import type { UserRole } from "~/types/user";
+import type { Contact } from "~/types/contact";
 
 import { ExportFilterDialog } from "~/components/ExportFilterDialog";
 import { useUsers } from "~/lib/userStore";
-import { useContacts } from "~/lib/contactStore";
-import type { Contact } from "~/lib/contactStore";
+import { useContacts } from "~/hooks/useContacts";
 
 import { ModernUsersTable } from "~/components/ModernUsersTable";
 
@@ -18,8 +19,21 @@ export function meta({ }: Route.MetaArgs) {
 
 export default function Admin() {
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const { users, updateUser, deleteUser, toggleUserStatus, updateUserRole } = useUsers();
+  const { users, updateUser, deleteUser, isLoading, isFilterLoading, filters, updateFilters } = useUsers();
   const { contacts, exportContacts } = useContacts();
+
+  // Helper function to update user role
+  const handleUpdateRole = (id: string, role: UserRole) => {
+    confirm(`Are you sure you want to change this user's role to ${role}?`) && updateUser(id, { role });
+  };
+
+  // Helper function to toggle user status
+  const handleToggleStatus = (id: string) => {
+    const user = users.find(u => u.id === id);
+    if (user) {
+      updateUser(id, { isActive: !user.isActive });
+    }
+  };
 
   const handleExport = (filteredContacts: Contact[], format: 'csv' | 'excel') => {
     exportContacts(filteredContacts, format);
@@ -149,7 +163,7 @@ export default function Admin() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 onClick={() => setShowExportDialog(true)}
-                className="flex items-center p-4 bg-gradient-to-r from-[#A0E9FF]/20 to-[#CDF5FD]/30 border-2 border-dashed border-[#89CFF3] rounded-xl hover:border-[#00A9FF] hover:bg-gradient-to-r hover:from-[#89CFF3]/20 hover:to-[#A0E9FF]/30 transition-all duration-300 group touch-manipulation"
+                className="flex items-center p-3 sm:p-4 bg-gradient-to-r from-[#A0E9FF]/20 to-[#CDF5FD]/30 border-2 border-dashed border-[#89CFF3] rounded-xl hover:border-[#00A9FF] hover:bg-gradient-to-r hover:from-[#89CFF3]/20 hover:to-[#A0E9FF]/30 transition-all duration-300 group touch-manipulation cursor-pointer"
               >
                 <div className="w-12 h-12 bg-gradient-to-br from-[#00A9FF] to-[#89CFF3] rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-sm">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,7 +178,7 @@ export default function Admin() {
 
               <a
                 href="/contacts"
-                className="flex items-center p-4 bg-gradient-to-r from-[#CDF5FD]/30 to-[#A0E9FF]/20 border-2 border-dashed border-[#89CFF3] rounded-xl hover:border-[#00A9FF] hover:bg-gradient-to-r hover:from-[#A0E9FF]/20 hover:to-[#89CFF3]/20 transition-all duration-300 group touch-manipulation"
+                className="flex items-center p-3 sm:p-4 bg-gradient-to-r from-[#CDF5FD]/30 to-[#A0E9FF]/20 border-2 border-dashed border-[#89CFF3] rounded-xl hover:border-[#00A9FF] hover:bg-gradient-to-r hover:from-[#A0E9FF]/20 hover:to-[#89CFF3]/20 transition-all duration-300 group touch-manipulation cursor-pointer"
               >
                 <div className="w-12 h-12 bg-gradient-to-br from-[#89CFF3] to-[#A0E9FF] rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-sm">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -193,8 +207,13 @@ export default function Admin() {
                 users={users}
                 onUpdateUser={updateUser}
                 onDeleteUser={deleteUser}
-                onToggleStatus={toggleUserStatus}
-                onUpdateRole={updateUserRole}
+                onToggleStatus={handleToggleStatus}
+                onUpdateRole={handleUpdateRole}
+                isLoading={isLoading}
+                isFilterLoading={isFilterLoading}
+                filters={filters}
+                onUpdateFilters={updateFilters}
+                // onUpdatePermissions={updateUserPermissions} // Permissions disabled
               />
             </div>
           </div>

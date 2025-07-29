@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
-import type { User, UserRole } from "~/lib/userStore";
-import { roleOptions /* availablePermissions */ } from "~/lib/userStore"; // Permissions commentées
+import { useState } from "react";
+import type { User, UserRole } from "~/types/user"
+
 
 interface UsersTableProps {
   users: User[];
@@ -9,12 +9,30 @@ interface UsersTableProps {
   onToggleStatus: (id: string) => void;
   onUpdateRole: (id: string, role: UserRole) => void;
   onUpdatePermissions?: (id: string, permissions: string[]) => void; // Permissions optionnelles
+  isLoading?: boolean;
+  isFilterLoading?: boolean;
+  filters?: {
+    search?: string;
+    role?: string;
+    status?: string;
+  };
+  onUpdateFilters?: (filters: { search?: string; role?: string; status?: string }) => void;
 }
 
-interface EditingUser {
-  id: string;
-  field: string;
-}
+const roleOptions: { value: UserRole; label: string; description: string; color: string }[] = [
+  { 
+    value: "admin", 
+    label: "Administrator", 
+    description: "Full system access",
+    color: "red"
+  },
+  { 
+    value: "staff", 
+    label: "Staff", 
+    description: "Contact management and limited access",
+    color: "blue"
+  }
+];
 
 export function UsersTable({ 
   users, 
@@ -22,56 +40,17 @@ export function UsersTable({
   onDeleteUser, 
   onToggleStatus, 
   onUpdateRole, 
-  onUpdatePermissions 
+  onUpdatePermissions,
+  isLoading = false,
+  isFilterLoading = false,
+  filters = {},
+  onUpdateFilters = () => {}
 }: UsersTableProps) {
-  const [editingUser, setEditingUser] = useState<EditingUser | null>(null);
-  const [editValue, setEditValue] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState<UserRole | "all">("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
-  // Variables pour les permissions supprimées (commentées)
-  // const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  // const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [sortField, setSortField] = useState<keyof User>("lastName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // Filtrage et tri
-  const filteredAndSortedUsers = useMemo(() => {
-    let filtered = users.filter(user => {
-      const matchesSearch = 
-        user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesRole = filterRole === "all" || user.role === filterRole;
-      const matchesStatus = filterStatus === "all" || 
-        (filterStatus === "active" && user.isActive) ||
-        (filterStatus === "inactive" && !user.isActive);
-
-      return matchesSearch && matchesRole && matchesStatus;
-    });
-
-    // Tri
-    filtered.sort((a, b) => {
-      const aValue = a[sortField];
-      const bValue = b[sortField];
-      
-      if (aValue === bValue) return 0;
-      
-      let comparison = 0;
-      if (typeof aValue === "string" && typeof bValue === "string") {
-        comparison = aValue.localeCompare(bValue);
-      } else if (typeof aValue === "boolean" && typeof bValue === "boolean") {
-        comparison = aValue === bValue ? 0 : aValue ? 1 : -1;
-      } else {
-        comparison = String(aValue).localeCompare(String(bValue));
-      }
-
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
-
-    return filtered;
-  }, [users, searchTerm, filterRole, filterStatus, sortField, sortDirection]);
+  // Server-side data - no client-side filtering needed
+  const displayUsers = users;
 
   const handleSort = (field: keyof User) => {
     if (sortField === field) {
@@ -80,31 +59,6 @@ export function UsersTable({
       setSortField(field);
       setSortDirection("asc");
     }
-  };
-
-  const startEditing = (user: User, field: string) => {
-    setEditingUser({ id: user.id, field });
-    setEditValue(String(user[field as keyof User] || ""));
-  };
-
-  const saveEdit = () => {
-    if (!editingUser) return;
-
-    onUpdateUser(editingUser.id, {
-      [editingUser.field]: editValue,
-    });
-
-    setEditingUser(null);
-    setEditValue("");
-  };
-
-  const cancelEdit = () => {
-    setEditingUser(null);
-    setEditValue("");
-  };
-
-  const isEditing = (userId: string, field: string) => {
-    return editingUser?.id === userId && editingUser?.field === field;
   };
 
   const formatDate = (dateString?: string) => {
@@ -140,66 +94,13 @@ export function UsersTable({
     </button>
   );
 
-  const renderEditableCell = (user: User, field: string, value: any) => {
-    if (isEditing(user.id, field)) {
-      return (
-        <input
-          type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={saveEdit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") saveEdit();
-            if (e.key === "Escape") cancelEdit();
-          }}
-          className="w-full px-2 py-1 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          autoFocus
-        />
-      );
-    }
-
+  const renderCell = (value: any) => {
     return (
-      <span
-        className="cursor-pointer hover:bg-blue-50 hover:text-blue-700 px-2 py-1 rounded transition-colors block w-full"
-        onClick={() => startEditing(user, field)}
-        title="Cliquer pour éditer"
-      >
+      <span className="px-2 py-1">
         {value || "-"}
       </span>
     );
   };
-
-  // Fonctions de gestion des permissions (TOUTES COMMENTÉES - Permissions supprimées)
-  /*
-  const openPermissionsModal = (user: User) => {
-    if (!onUpdatePermissions) return; // Permissions désactivées
-    setSelectedUser(user);
-    setShowPermissionsModal(true);
-  };
-
-  const handlePermissionToggle = (permissionId: string) => {
-    if (!selectedUser || !onUpdatePermissions) return; // Vérification si permissions disponibles
-
-    const currentPermissions = selectedUser.permissions;
-    const newPermissions = currentPermissions.includes(permissionId)
-      ? currentPermissions.filter(p => p !== permissionId)
-      : [...currentPermissions, permissionId];
-
-    onUpdatePermissions(selectedUser.id, newPermissions);
-    setSelectedUser({ ...selectedUser, permissions: newPermissions });
-  };
-
-  const groupedPermissions = useMemo(() => {
-    const groups: Record<string, typeof availablePermissions> = {};
-    availablePermissions.forEach(permission => {
-      if (!groups[permission.category]) {
-        groups[permission.category] = [];
-      }
-      groups[permission.category].push(permission);
-    });
-    return groups;
-  }, []);
-  */
 
   return (
     <div className="space-y-6">
@@ -212,12 +113,12 @@ export function UsersTable({
               <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <input
+                            <input
                 type="text"
                 placeholder="Search by name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={filters.search || ''}
+                onChange={(e) => onUpdateFilters({ ...filters, search: e.target.value })}
               />
             </div>
           </div>
@@ -225,9 +126,9 @@ export function UsersTable({
           {/* Filtre par rôle */}
           <div>
             <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value as UserRole | "all")}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filters.role || 'all'}
+              onChange={(e) => onUpdateFilters({ ...filters, role: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
               <option value="all">All roles</option>
               {roleOptions.map(role => (
@@ -235,38 +136,21 @@ export function UsersTable({
               ))}
             </select>
           </div>
-
-          {/* Filtre par statut */}
-          <div>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as "all" | "active" | "inactive")}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
         </div>
 
         {/* Statistiques */}
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-2xl font-bold text-gray-900">{filteredAndSortedUsers.length}</div>
-            <div className="text-sm text-gray-500">Total users</div>
+        <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg border">
+            <div className="text-sm text-gray-500">Total Users</div>
+            <div className="text-2xl font-bold text-gray-900">{displayUsers.length}</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-2xl font-bold text-green-600">{filteredAndSortedUsers.filter(u => u.isActive).length}</div>
-            <div className="text-sm text-gray-500">Active</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-2xl font-bold text-red-600">{filteredAndSortedUsers.filter(u => u.role === 'admin').length}</div>
+          <div className="bg-white p-4 rounded-lg border">
             <div className="text-sm text-gray-500">Administrators</div>
+            <div className="text-2xl font-bold text-red-600">{displayUsers.filter((u: User) => u.role === 'admin').length}</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-2xl font-bold text-blue-600">{filteredAndSortedUsers.filter(u => u.role === 'staff').length}</div>
-            <div className="text-sm text-gray-500">Staff</div>
+          <div className="bg-white p-4 rounded-lg border">
+            <div className="text-sm text-gray-500">Staff Members</div>
+            <div className="text-2xl font-bold text-blue-600">{displayUsers.filter((u: User) => u.role === 'staff').length}</div>
           </div>
         </div>
       </div>
@@ -278,10 +162,7 @@ export function UsersTable({
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortButton field="firstName">First Name</SortButton>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortButton field="lastName">Last Name</SortButton>
+                  <SortButton field="firstName">User Name</SortButton>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <SortButton field="email">Email</SortButton>
@@ -290,18 +171,12 @@ export function UsersTable({
                   <SortButton field="role">Role</SortButton>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortButton field="isActive">Status</SortButton>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <SortButton field="lastLogin">Last Login</SortButton>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAndSortedUsers.length === 0 ? (
+              {displayUsers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center">
@@ -310,7 +185,7 @@ export function UsersTable({
                       </svg>
                       <p>No users found</p>
                       <p className="text-sm text-gray-400 mt-1">
-                        {searchTerm || filterRole !== "all" || filterStatus !== "all" 
+                        {(filters.search || filters.role !== "all" || filters.status !== "all")
                           ? "Try modifying your search filters"
                           : "Start by adding some users"
                         }
@@ -319,24 +194,21 @@ export function UsersTable({
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedUsers.map((user) => {
+                displayUsers.map((user: User) => {
                   const roleConfig = getRoleConfig(user.role);
                   return (
                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {renderEditableCell(user, "firstName", user.firstName)}
+                        {renderCell(user.username)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {renderEditableCell(user, "lastName", user.lastName)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {renderEditableCell(user, "email", user.email)}
+                        {renderCell(user.email)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <select
                           value={user.role}
                           onChange={(e) => onUpdateRole(user.id, e.target.value as UserRole)}
-                          className={`px-3 py-1 rounded-full text-xs font-medium border-0 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                          className={`px-3 py-1 rounded-full text-xs font-medium border-0 focus:outline-none focus:ring-2 focus:ring-offset-1 cursor-pointer ${
                             roleConfig?.color === 'red' ? 'bg-red-100 text-red-800 focus:ring-red-500' :
                             roleConfig?.color === 'blue' ? 'bg-blue-100 text-blue-800 focus:ring-blue-500' :
                             'bg-green-100 text-green-800 focus:ring-green-500'
@@ -347,29 +219,11 @@ export function UsersTable({
                           ))}
                         </select>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <button
-                          onClick={() => onToggleStatus(user.id)}
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                            user.isActive 
-                              ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                              : 'bg-red-100 text-red-800 hover:bg-red-200'
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                            user.isActive ? 'bg-green-400' : 'bg-red-400'
-                          }`}></span>
-                          {user.isActive ? 'Active' : 'Inactive'}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(user.lastLogin)}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
                           <button
                             onClick={() => onDeleteUser(user.id)}
-                            className="text-red-600 hover:text-red-900 transition-colors"
+                            className="text-red-600 hover:text-red-900 transition-colors cursor-pointer"
                             title="Delete user"
                           >
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -386,8 +240,6 @@ export function UsersTable({
           </table>
         </div>
       </div>
-
-      {/* Permissions modal removed - no longer needed */}
     </div>
   );
 }

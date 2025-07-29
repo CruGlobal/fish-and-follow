@@ -1,80 +1,7 @@
 import { useState, useEffect } from "react";
-
-// Types basés sur votre schéma de base de données
-export type YearEnum = "1" | "2" | "3" | "4" | "5" | "Master" | "PhD";
-export type GenderEnum = "male" | "female" | "other" | "prefer_not_to_say";
-
-export interface Contact {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phoneNumber: string;
-  email?: string; // facultatif
-  campus: string;
-  major: string;
-  year: YearEnum;
-  isInterested: boolean;
-  gender: GenderEnum;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface NewContactData {
-  firstName: string;
-  lastName: string;
-  phoneNumber: string;
-  email: string;
-  campus: string;
-  major: string;
-  year: YearEnum;
-  isInterested: boolean;
-  gender: GenderEnum;
-}
-
-// Sample data for testing
-const mockContacts: Contact[] = [
-  {
-    id: "1",
-    firstName: "John",
-    lastName: "Smith",
-    phoneNumber: "+1234567890",
-    email: "john.smith@email.com",
-    campus: "Paris",
-    major: "Computer Science",
-    year: "3",
-    isInterested: true,
-    gender: "male",
-    createdAt: "2025-01-15T10:00:00Z",
-    updatedAt: "2025-01-15T10:00:00Z",
-  },
-  {
-    id: "2",
-    firstName: "Maria",
-    lastName: "Garcia",
-    phoneNumber: "+33987654321",
-    email: "maria.garcia@email.com",
-    campus: "Lyon",
-    major: "Marketing",
-    year: "2",
-    isInterested: false,
-    gender: "female",
-    createdAt: "2025-01-14T14:30:00Z",
-    updatedAt: "2025-01-14T14:30:00Z",
-  },
-  {
-    id: "3",
-    firstName: "Ahmed",
-    lastName: "Hassan",
-    phoneNumber: "+33555123456",
-    campus: "Marseille",
-    major: "Engineering",
-    year: "4",
-    isInterested: true,
-    gender: "male",
-    createdAt: "2025-01-13T09:15:00Z",
-    updatedAt: "2025-01-13T09:15:00Z",
-  },
-];
+import { apiService } from "./api";
+import { mapApiContactToContact } from "./mappers/contactMappers";
+import type { Contact, YearEnum, GenderEnum } from "~/types/contact";
 
 // Hook de gestion des contacts
 export function useContacts() {
@@ -84,15 +11,30 @@ export function useContacts() {
 
   // Charger les contacts depuis localStorage au montage
   useEffect(() => {
+    // query database for contacts
+    setIsLoading(true);
+    setError(null);
+
+    apiService.getFullContacts().then(fetchedContacts => {
+      // Map API contacts to local Contact interface
+      const mappedContacts: Contact[] = fetchedContacts.map(mapApiContactToContact);
+      setContacts(mappedContacts);
+      setIsLoading(false);
+    }).catch(err => {
+      console.error("Failed to fetch contacts:", err);
+      setError("Failed to fetch contacts");
+      setIsLoading(false);
+    });
+
     const savedContacts = localStorage.getItem("contacts");
     if (savedContacts) {
       try {
         setContacts(JSON.parse(savedContacts));
       } catch {
-        setContacts(mockContacts);
+        setContacts([]);
       }
     } else {
-      setContacts(mockContacts);
+      setContacts([]);
     }
   }, []);
 
@@ -103,7 +45,7 @@ export function useContacts() {
     }
   }, [contacts]);
 
-  const addContact = (contactData: NewContactData) => {
+  const addContact = (contactData: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const newContact: Contact = {
         ...contactData,
@@ -111,7 +53,6 @@ export function useContacts() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-
       setContacts(prev => [...prev, newContact]);
       setError(null);
     } catch (err) {
@@ -160,7 +101,7 @@ export function useContacts() {
 
     if (format === 'excel') {
       // Excel-like CSV with enhanced formatting
-      const headers = ["First Name", "Last Name", "Email", "Phone", "Campus", "Major", "Year", "Gender", "Interested", "Created At", "Updated At", "Full Name", "Contact Summary"];
+      const headers = ["First Name", "Last Name", "Email", "Phone", "Campus", "Major", "Year", "Gender", "Follow-up Status", "Notes", "Created At", "Updated At", "Full Name", "Contact Summary"];
       const csvContent = [
         headers.join(","),
         ...contactsData.map(contact => [
@@ -172,7 +113,8 @@ export function useContacts() {
           contact.major,
           contact.year,
           contact.gender,
-          contact.isInterested ? "Yes" : "No",
+          contact.followUpStatusNumber || "",
+          contact.notes || "",
           formatDate(contact.createdAt),
           formatDate(contact.updatedAt),
           `${contact.firstName} ${contact.lastName}`,
@@ -194,7 +136,7 @@ export function useContacts() {
     }
 
     // Standard CSV Export (default)
-    const headers = ["First Name", "Last Name", "Email", "Phone", "Campus", "Major", "Year", "Gender", "Interested", "Created At"];
+    const headers = ["First Name", "Last Name", "Email", "Phone", "Campus", "Major", "Year", "Gender", "Follow-up Status", "Notes", "Created At"];
     const csvContent = [
       headers.join(","),
       ...contactsData.map(contact => [
@@ -206,7 +148,8 @@ export function useContacts() {
         contact.major,
         contact.year,
         contact.gender,
-        contact.isInterested ? "Yes" : "No",
+        contact.followUpStatusNumber || "",
+        contact.notes || "",
         formatDate(contact.createdAt)
       ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(","))
     ].join("\n");
@@ -235,20 +178,21 @@ export function useContacts() {
   };
 }
 
-// Options for dropdowns
 export const yearOptions: { value: YearEnum; label: string }[] = [
-  { value: "1", label: "1st Year" },
-  { value: "2", label: "2nd Year" },
-  { value: "3", label: "3rd Year" },
-  { value: "4", label: "4th Year" },
-  { value: "5", label: "5th Year" },
-  { value: "Master", label: "Master's" },
-  { value: "PhD", label: "PhD" },
+  { value: "1st_year", label: "1st Year" },
+  { value: "2nd_year", label: "2nd Year" },
+  { value: "3rd_year", label: "3rd Year" },
+  { value: "4th_year", label: "4th Year" },
+  { value: "5th_year", label: "5th Year" },
+  { value: "6th_year", label: "6th Year" },
+  { value: "7th_year", label: "7th Year" },
+  { value: "8th_year", label: "8th Year" },
+  { value: "9th_year", label: "9th Year" },
+  { value: "10th_year", label: "10th Year" },
+  { value: "11th_year", label: "11th Year" },
 ];
 
 export const genderOptions: { value: GenderEnum; label: string }[] = [
   { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other", label: "Other" },
-  { value: "prefer_not_to_say", label: "Prefer not to say" },
+  { value: "female", label: "Female" }
 ];

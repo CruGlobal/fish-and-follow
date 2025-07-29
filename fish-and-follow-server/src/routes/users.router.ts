@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { db } from '../db/client';
 import { user } from '../db/schema';
+import { eq, and, or, like, ilike, asc } from 'drizzle-orm';
 
 export const usersRouter = Router();
 
@@ -9,6 +9,65 @@ export const usersRouter = Router();
 usersRouter.get('/', async (_req, res) => {
   const users = await db.select().from(user);
   res.json(users);
+});
+
+// GET users with search and filters
+usersRouter.get('/search', async (req: Request, res: Response) => {
+  const { 
+    search = '', 
+    limit = '50', 
+    role,
+    status
+  } = req.query;
+
+  const maxResults = Math.max(1, Math.min(100, parseInt(limit as string) || 50));
+  const hasSearchQuery = search && typeof search === 'string' && search.trim();
+
+  try {
+    // Build filter conditions
+    const filterConditions = [];
+    
+    if (role && typeof role === 'string' && role !== 'all') {
+      filterConditions.push(eq(user.role, role as any));
+    }
+
+    let whereCondition;
+
+    if (hasSearchQuery) {
+      const searchQuery = (search as string).trim();
+      const searchCondition = or(
+        ilike(user.username, `%${searchQuery}%`),
+        ilike(user.email, `%${searchQuery}%`),
+      );
+      
+      if (filterConditions.length > 0) {
+        whereCondition = and(searchCondition, ...filterConditions);
+      } else {
+        whereCondition = searchCondition;
+      }
+    } else if (filterConditions.length > 0) {
+      whereCondition = and(...filterConditions);
+    }
+
+    const results = whereCondition
+      ? await db.select().from(user).where(whereCondition).orderBy(asc(user.username)).limit(maxResults)
+      : await db.select().from(user).orderBy(asc(user.username)).limit(maxResults);
+
+    console.log(
+      `✅ Found ${results.length} ${hasSearchQuery ? `user matches for "${search}"` : 'users'}`,
+    );
+    
+    res.json({
+      success: true,
+      users: results,
+      query: search || null,
+      total: results.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('User search error:', error);
+    res.status(500).json({ error: 'Failed to search users' });
+  }
 });
 
 // GET user by ID

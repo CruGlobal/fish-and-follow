@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { Contact, GenderEnum, YearEnum } from "../lib/contactStore";
-import { genderOptions, yearOptions } from "../lib/formOptions";
+import type { Contact, YearEnum, GenderEnum } from "~/types/contact";
+import { yearOptions, genderOptions } from "~/types/contact";
 import { Button } from "./ui/button";
 
 interface FilterCriteria {
@@ -8,12 +8,12 @@ interface FilterCriteria {
   major: string[];
   year: YearEnum[];
   gender: GenderEnum[];
-  isInterested: "all" | "true" | "false";
+  isInterested?: "all" | "true" | "false";
+  followUpStatusNumbers: number[];
   dateRange: {
     from: string;
     to: string;
   };
-  searchTerm: string;
   advancedFilters: {
     hasEmail: "all" | "true" | "false";
     emailDomain: string;
@@ -33,9 +33,8 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
     major: [],
     year: [],
     gender: [],
-    isInterested: "all",
+    followUpStatusNumbers: [],
     dateRange: { from: "", to: "" },
-    searchTerm: "",
     advancedFilters: {
       hasEmail: "all",
       emailDomain: "",
@@ -48,6 +47,28 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
   // Get unique values for filter options
   const uniqueCampuses = Array.from(new Set(contacts.map(c => c.campus))).sort();
   const uniqueMajors = Array.from(new Set(contacts.map(c => c.major))).sort();
+
+  const getExportStats = (contactsToAnalyze: Contact[]) => {
+    return {
+      total: contactsToAnalyze.length,
+      withEmail: contactsToAnalyze.filter(c => c.email && c.email.trim()).length,
+      withPhone: contactsToAnalyze.filter(c => c.phoneNumber && c.phoneNumber.trim()).length,
+      interested: contactsToAnalyze.filter(c => c.isInterested).length,
+      byFollowUpStatus: contactsToAnalyze.reduce((acc, c) => {
+        const statusName = c?.followUpStatusDescription || `Status ${c.followUpStatusNumber}`;
+        acc[statusName] = (acc[statusName] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      byYear: contactsToAnalyze.reduce((acc, c) => {
+        acc[c.year] = (acc[c.year] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      byCampus: contactsToAnalyze.reduce((acc, c) => {
+        acc[c.campus] = (acc[c.campus] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    };
+  };
 
   // Apply all filters
   const getFilteredContacts = (): Contact[] => {
@@ -72,10 +93,9 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
         return false;
       }
 
-      // Interest filter
-      if (filters.isInterested !== "all") {
-        const isInterestedBool = filters.isInterested === "true";
-        if (contact.isInterested !== isInterestedBool) return false;
+      // Follow-up status filter
+      if (filters.followUpStatusNumbers.length > 0 && !filters.followUpStatusNumbers.includes(contact.followUpStatusNumber || 0)) {
+        return false;
       }
 
       // Date range filter
@@ -96,7 +116,9 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
       if (filters.searchTerm) {
         const searchLower = filters.searchTerm.toLowerCase();
         const searchableText = `${contact.firstName} ${contact.lastName} ${contact.email || ""} ${contact.phoneNumber} ${contact.campus} ${contact.major}`.toLowerCase();
-        if (!searchableText.includes(searchLower)) return false;
+        if (!searchableText.includes(searchLower)) {
+          return false;
+        }
       }
 
       // Advanced filters
@@ -139,8 +161,8 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
       year: [],
       gender: [],
       isInterested: "all",
+      followUpStatusNumbers: [],
       dateRange: { from: "", to: "" },
-      searchTerm: "",
       advancedFilters: {
         hasEmail: "all",
         emailDomain: "",
@@ -149,9 +171,114 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
     });
   };
 
-  const handleExport = () => {
-    onExport(filteredContacts, exportFormat);
-    onClose();
+  const handleExport = async () => {
+    // Set loading state
+    setIsExporting(true);
+    
+    try {
+      // JavaScript validation controls
+      
+      // 1. Check if we have any contacts to export
+      if (!contacts || contacts.length === 0) {
+        alert("⚠️ No contacts available to export.");
+        return;
+      }
+
+      // 2. Check if filtered contacts exist
+      if (!filteredContacts || filteredContacts.length === 0) {
+        const confirmExportEmpty = window.confirm(
+          "⚠️ No contacts match your current filters.\n\nWould you like to:\n• Click 'OK' to reset filters and export all contacts\n• Click 'Cancel' to modify your filters"
+        );
+        
+        if (!confirmExportEmpty) {
+          return; // User wants to modify filters
+        } else {
+          // Reset filters and export all contacts
+          resetFilters();
+          onExport(contacts, exportFormat);
+          onClose();
+          return;
+        }
+      }
+
+      // 3. Warning for large exports
+      if (filteredContacts.length > 1000) {
+        const confirmLargeExport = window.confirm(
+          `⚠️ Large Export Warning\n\nYou are about to export ${filteredContacts.length.toLocaleString()} contacts.\n\nThis may take a while and create a large file.\n\nDo you want to continue?`
+        );
+        
+        if (!confirmLargeExport) {
+          return;
+        }
+      }
+
+      // 4. Format validation
+      if (!['csv', 'excel'].includes(exportFormat)) {
+        alert("❌ Invalid export format selected. Please choose CSV or Excel.");
+        return;
+      }
+
+      // 5. Check for sensitive data warning
+      const hasSensitiveData = filteredContacts.some(contact => 
+        contact.email || contact.phoneNumber
+      );
+      
+      if (hasSensitiveData) {
+        const confirmSensitiveData = window.confirm(
+          "🔒 Privacy Notice\n\nThe export contains personal information (emails and phone numbers).\n\nPlease ensure you comply with data protection regulations and handle this data securely.\n\nDo you want to proceed with the export?"
+        );
+        
+        if (!confirmSensitiveData) {
+          return;
+        }
+      }
+
+      // 6. Final confirmation with export summary
+      const stats = getExportStats(filteredContacts);
+      const exportSummary = `📊 Export Summary:
+• ${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''}
+• Format: ${exportFormat.toUpperCase()}
+• Date: ${new Date().toLocaleDateString()}
+• With Email: ${stats.withEmail}
+• With Phone: ${stats.withPhone}
+• Interested: ${stats.interested}
+
+Active Filters:
+${filters.campus.length > 0 ? `• Campus: ${filters.campus.join(', ')}\n` : ''}${filters.major.length > 0 ? `• Major: ${filters.major.join(', ')}\n` : ''}${filters.year.length > 0 ? `• Year: ${filters.year.join(', ')}\n` : ''}${filters.gender.length > 0 ? `• Gender: ${filters.gender.join(', ')}\n` : ''}${filters.isInterested !== 'all' ? `• Interest: ${filters.isInterested === 'true' ? 'Interested' : 'Not Interested'}\n` : ''}
+Ready to export?`;
+
+      const finalConfirm = window.confirm(exportSummary);
+      
+      if (!finalConfirm) {
+        return;
+      }
+
+      // 7. Execute export with loading simulation
+      console.log('🚀 Starting export...', {
+        count: filteredContacts.length,
+        format: exportFormat,
+        timestamp: new Date().toISOString(),
+        stats
+      });
+
+      // Simulate processing time for better UX
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      onExport(filteredContacts, exportFormat);
+      
+      // Success notification
+      setTimeout(() => {
+        alert(`✅ Export completed successfully!\n\n${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''} exported in ${exportFormat.toUpperCase()} format.\n\nFile should be downloading now.`);
+      }, 100);
+      
+      onClose();
+      
+    } catch (error) {
+      console.error('❌ Export failed:', error);
+      alert(`❌ Export failed!\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or contact support.`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -175,39 +302,68 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
         </div>
 
         <div className="flex flex-col lg:flex-row">
-          {/* Filters Panel */}
-          <div className="lg:w-2/3 p-4 sm:p-6 border-r border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Filter Options</h3>
-            
-            {/* Search */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-              <input
-                type="text"
-                value={filters.searchTerm}
-                onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-                placeholder="Search by name, email, phone..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Campus Filter */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Campus</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {uniqueCampuses.map(campus => (
-                  <label key={campus} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={filters.campus.includes(campus)}
-                      onChange={() => handleArrayFilterChange('campus', campus)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm">{campus}</span>
-                  </label>
-                ))}
+          {/* Filters Panel - Mobile First */}
+          <div className="w-full lg:w-1/3 p-4 sm:p-6 border-b lg:border-b-0 lg:border-r border-gray-200 space-y-4 sm:space-y-6">
+            {/* Simple Filters */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Quick Filters
+              </label>
+              <div className="space-y-2">
+                <Button
+                  variant={filters.isInterested === "true" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilters(prev => ({ ...prev, isInterested: prev.isInterested === "true" ? "all" : "true" }))}
+                  className="w-full justify-start"
+                >
+                  ✅ Interested Only
+                </Button>
+                <Button
+                  variant={filters.advancedFilters.hasEmail === "true" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilters(prev => ({ 
+                    ...prev, 
+                    advancedFilters: { 
+                      ...prev.advancedFilters, 
+                      hasEmail: prev.advancedFilters.hasEmail === "true" ? "all" : "true" 
+                    }
+                  }))}
+                  className="w-full justify-start"
+                >
+                  📧 Has Email
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onExport(contacts, 'csv')}
+                  className="w-full justify-start bg-green-50 hover:bg-green-100 border-green-300"
+                >
+                  ⚡ Export All (CSV)
+                </Button>
               </div>
             </div>
+
+            {/* Campus & Major Filters */}
+            <div className="space-y-4">
+              {/* Campus Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Campus
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2 space-y-1">
+                  {uniqueCampuses.map(campus => (
+                    <label key={campus} className="flex items-center space-x-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={filters.campus.includes(campus)}
+                        onChange={() => handleArrayFilterChange('campus', campus)}
+                        className="rounded-md mr-2"
+                      />
+                      <span className="text-sm">{campus}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
             {/* Major Filter */}
             <div className="mb-6">
@@ -230,34 +386,38 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
             {/* Year and Gender */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
-                <div className="space-y-2">
-                  {yearOptions.map(option => (
-                    <label key={option.value} className="flex items-center">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Gender
+                </label>
+                <div className="border border-gray-300 rounded-md p-2 space-y-1">
+                  {Object.entries(genderOptions).map(([value, label]) => (
+                    <label key={value} className="flex items-center space-x-2 text-sm">
                       <input
                         type="checkbox"
-                        checked={filters.year.includes(option.value)}
-                        onChange={() => handleArrayFilterChange('year', option.value)}
-                        className="mr-2"
+                        checked={filters.gender.includes(value as GenderEnum)}
+                        onChange={() => handleArrayFilterChange('gender', value)}
+                        className="rounded"
                       />
-                      <span className="text-sm">{option.label}</span>
+                      <span>{label}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
-                <div className="space-y-2">
-                  {genderOptions.map(option => (
-                    <label key={option.value} className="flex items-center">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Academic Year
+                </label>
+                <div className="border border-gray-300 rounded-md p-2 space-y-1">
+                  {Object.entries(yearOptions).map(([value, label]) => (
+                    <label key={value} className="flex items-center space-x-2 text-sm">
                       <input
                         type="checkbox"
-                        checked={filters.gender.includes(option.value)}
-                        onChange={() => handleArrayFilterChange('gender', option.value)}
-                        className="mr-2"
+                        checked={filters.year.includes(value as YearEnum)}
+                        onChange={() => handleArrayFilterChange('year', value)}
+                        className="rounded"
                       />
-                      <span className="text-sm">{option.label}</span>
+                      <span>{label}</span>
                     </label>
                   ))}
                 </div>
