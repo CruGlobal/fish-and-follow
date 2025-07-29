@@ -3,6 +3,8 @@ import SubmitConfirmation from "./SubmitConfirmation";
 import GenderDropdown from "app/components/GenderDropdown";
 import YearDropdown from "app/components/YearDropdown";
 import CampusDropdown from "app/components/CampusDropdown";
+import { useTranslation, Trans } from "react-i18next";
+import i18n from "~/i18n";
 
 interface ContactFormData {
   firstName: string;
@@ -33,6 +35,8 @@ export function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  const { t } = useTranslation();
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -58,7 +62,7 @@ export function ContactForm() {
         },
         body: JSON.stringify({
           to: formData.phone,
-          message: `Thanks ${formData.firstName} for submitting your contact!`,
+          message: t("contactForm.success", { name: formData.firstName }),
         }),
       });
 
@@ -69,9 +73,7 @@ export function ContactForm() {
       }
 
       setSubmitted(true);
-      setSuccessMessage(
-        "Thanks for submitting your contact! We've sent you a confirmation SMS."
-      );
+      setSuccessMessage(t("contactForm.success", { name: formData.firstName }));
     } catch (error) {
       console.error("Error submitting form:", error);
       alert("Something went wrong. Please try again.");
@@ -89,7 +91,7 @@ export function ContactForm() {
               htmlFor="firstName"
               className="block text-sm font-medium text-gray-700"
             >
-              First Name *
+              {t("contactForm.labels.firstName")}
             </label>
             <input
               type="text"
@@ -106,7 +108,7 @@ export function ContactForm() {
               htmlFor="lastName"
               className="block text-sm font-medium text-gray-700"
             >
-              Family Name *
+              {t("contactForm.labels.lastName")}
             </label>
             <input
               type="text"
@@ -125,7 +127,7 @@ export function ContactForm() {
             htmlFor="phone"
             className="block text-sm font-medium text-gray-700"
           >
-            WhatsApp Number *
+            {t("contactForm.labels.phone")}
           </label>
           <input
             type="tel"
@@ -143,7 +145,7 @@ export function ContactForm() {
             htmlFor="campus"
             className="block text-sm font-medium text-gray-700"
           >
-            Campus *
+            {t("contactForm.labels.campus")}
           </label>
           <CampusDropdown
             value={formData.campus}
@@ -158,7 +160,7 @@ export function ContactForm() {
             htmlFor="major"
             className="block text-sm font-medium text-gray-700"
           >
-            Major *
+            {t("contactForm.labels.major")}
           </label>
           <input
             type="text"
@@ -176,7 +178,7 @@ export function ContactForm() {
             htmlFor="year"
             className="block text-sm font-medium text-gray-700"
           >
-            Year *
+            {t("contactForm.labels.year")}
           </label>
           <YearDropdown
             value={formData.year}
@@ -191,7 +193,7 @@ export function ContactForm() {
             htmlFor="gender"
             className="block text-sm font-medium text-gray-700"
           >
-            Gender *
+            {t("contactForm.labels.gender")}
           </label>
           <GenderDropdown
             value={formData.gender}
@@ -206,7 +208,7 @@ export function ContactForm() {
             htmlFor="message"
             className="block text-sm font-medium text-gray-700"
           >
-            Do you have any questions for us?
+            {t("contactForm.labels.message")}
           </label>
           <textarea
             id="message"
@@ -215,7 +217,7 @@ export function ContactForm() {
             value={formData.message}
             onChange={handleInputChange}
             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 bg-white px-3 py-2"
-            placeholder="Ask anything..."
+            placeholder={t("contactForm.placeholders.message")}
           />
         </div>
 
@@ -225,8 +227,13 @@ export function ContactForm() {
             disabled={isSubmitting}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            {isSubmitting ? "Submitting..." : "Submit Contact"}
+            {isSubmitting
+              ? t("contactForm.buttons.submitting")
+              : t("contactForm.buttons.submit")}
           </button>
+          {/* <button onClick={() => i18n.changeLanguage("pt")}>
+            Switch to Portuguese
+          </button> */}
         </div>
         {successMessage && (
           <div className="p-4 mb-4 bg-green-100 text-green-800 rounded">

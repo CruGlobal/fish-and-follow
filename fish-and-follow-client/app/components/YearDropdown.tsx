@@ -1,4 +1,5 @@
 // components/GenderDropdown.tsx
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,16 +17,20 @@ type YearDropdownProps = {
 const years = ["1st", "2nd", "3rd", "4th", "5th+"];
 
 export default function YearDropdown({ value, onChange }: YearDropdownProps) {
+  const { t } = useTranslation();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">{value || "Select Year"}</Button>
+        <Button variant="outline">
+          {value ? t(`dropdowns.year.options.${value}`) : t("dropdowns.year.placeholder")}
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuLabel>Year</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("dropdowns.year.label")}</DropdownMenuLabel>
         {years.map((year) => (
           <DropdownMenuItem key={year} onSelect={() => onChange(year)}>
-            {year}
+            {t(`dropdowns.year.options.${year}`)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

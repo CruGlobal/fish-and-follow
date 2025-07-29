@@ -1,4 +1,5 @@
 // components/GenderDropdown.tsx
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,22 +14,28 @@ type GenderDropdownProps = {
   onChange: (value: string) => void;
 };
 
-const genders = ["Male", "Female"];
+const genders = ["male", "female"];
 
 export default function GenderDropdown({
   value,
   onChange,
 }: GenderDropdownProps) {
+  const { t } = useTranslation();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">{value || "Select Gender"}</Button>
+        <Button variant="outline">
+          {value
+            ? t(`dropdowns.gender.options.${value}`)
+            : t("dropdowns.gender.placeholder")}
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuLabel>Gender</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("dropdowns.gender.label")}</DropdownMenuLabel>
         {genders.map((gender) => (
           <DropdownMenuItem key={gender} onSelect={() => onChange(gender)}>
-            {gender}
+            {t(`dropdowns.gender.options.${gender}`)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
