@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from '~/hooks/useAuth';
 
 interface NavigationProps {
   currentPath?: string;
@@ -19,7 +19,7 @@ export function Navigation({
 
   const authenticatedLinks = [
     { href: "/contacts", label: "Contacts" },
-    { href: "/admin", label: "Admin" },
+    ...(user?.role === "admin" ? [{ href: "/admin", label: "Admin" }] : []),
     { href: "/bulkmessaging", label: "Bulk Messaging" },
   ];
 

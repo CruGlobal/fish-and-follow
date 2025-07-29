@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+
 interface PageHeaderCenteredProps {
   title: string;
   description: string;
@@ -27,8 +29,8 @@ export function PageHeaderCentered({
       {showBackButton && (
         <div className="mb-8">
           <nav className="flex justify-center">
-            <a
-              href={backButtonHref}
+            <Link
+              to={backButtonHref}
               className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
             >
               <svg
@@ -46,7 +48,7 @@ export function PageHeaderCentered({
                 />
               </svg>
               {backButtonText}
-            </a>
+            </Link>
           </nav>
         </div>
       )}

@@ -8,7 +8,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 
-export const RoleEnum = pgEnum('role_enum', ['admin', 'user']);
+export const RoleEnum = pgEnum('role_enum', ['admin', 'staff']);
 
 export const YearEnum = pgEnum('year_enum', [
   '1st_year',

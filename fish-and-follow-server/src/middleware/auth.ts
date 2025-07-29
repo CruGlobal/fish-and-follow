@@ -13,3 +13,24 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
   next();
 };
 
+export const requireRole = (roles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.isAuthenticated?.() || !req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        authenticated: false 
+      });
+    }
+
+    const user = req.session as any;
+
+    if (!user.userRole || !roles.includes(user.userRole)) {
+      return res.status(403).json({ 
+        error: 'Forbidden: insufficient role',
+        requiredRoles: roles 
+      });
+    }
+
+    next();
+  };
+};
