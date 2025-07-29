@@ -5,13 +5,11 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
-  useLocation,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
-import { Navigation } from "./components/Navigation";
-import { AuthProvider } from "./contexts/AuthContext";
+import ModernNavigation from "./components/ModernNavigation";
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -27,7 +25,6 @@ export const links = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const location = useLocation();
   return (
     <html lang="en">
       <head>
@@ -39,13 +36,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
         see: https://github.com/vite-pwa/vite-plugin-pwa/issues/809 */}
         <link rel="manifest" href="/manifest.webmanifest" />
       </head>
-      <body className="bg-gray-50">
-        <AuthProvider>
-          <Navigation currentPath={location.pathname} />
-          {children}
-          <ScrollRestoration />
-          <Scripts />
-        </AuthProvider>
+      <body className="bg-gradient-to-br from-[#CDF5FD] to-white">
+        <div className="min-h-screen">
+          <ModernNavigation />
+          <div className="lg:pl-64 pb-16 lg:pb-0">
+            {children}
+          </div>
+        </div>
+        <ScrollRestoration />
+        <Scripts />
       </body>
     </html>
   );
