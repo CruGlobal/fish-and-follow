@@ -15,6 +15,20 @@
       "when": 1753765878031,
       "tag": "0001_great_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1753766690530,
+      "tag": "0002_solid_leo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1753774485922,
+      "tag": "0003_silent_namorita",
+      "breakpoints": true
     }
   ]
 }
