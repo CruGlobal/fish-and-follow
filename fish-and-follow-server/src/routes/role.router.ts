@@ -1,7 +1,7 @@
+import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import { db } from '../db/client';
 import { role } from '../db/schema';
-import { eq } from 'drizzle-orm';
 
 export const roleRouter = Router();
 
@@ -36,15 +36,15 @@ roleRouter.get('/:id', async (req, res) => {
 
 // POST create role
 roleRouter.post('/', async (req, res) => {
-  const { orgId, userId, roleType } = req.body;
+  const { orgId, userId, role } = req.body;
 
-  if (!orgId || !userId || !roleType) {
+  if (!orgId || !userId || !role) {
     return res.status(400).json({ error: 'orgId, userId, and roleType are required' });
   }
 
   try {
-    const inserted = await db.insert(role).values({ orgId, userId, roleType }).returning();
-    res.status(201).json(inserted[0]);
+    const inserted = await db.insert(role).values({ orgId, userId, role }).returning();
+    res.status(201).json(inserted);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create role' });
@@ -54,16 +54,16 @@ roleRouter.post('/', async (req, res) => {
 // PUT update role by ID
 roleRouter.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { orgId, userId, roleType } = req.body;
+  const { orgId, userId, role } = req.body;
 
-  if (!orgId || !userId || !roleType) {
+  if (!orgId || !userId || !role) {
     return res.status(400).json({ error: 'orgId, userId, and roleType are required' });
   }
 
   try {
     const updated = await db
       .update(role)
-      .set({ orgId, userId, roleType })
+      .set({ orgId, userId, role })
       .where(eq(role.id, id))
       .returning();
 
