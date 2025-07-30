@@ -1,13 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/client';
-import { user } from '../db/schema';
+import { user, role } from '../db/schema';
 import { eq, and, or, like, ilike, asc } from 'drizzle-orm';
 
 export const usersRouter = Router();
 
 // GET all users
 usersRouter.get('/', async (_req, res) => {
-  const users = await db.select().from(user);
+  const users = await db
+    .select({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      contactId: user.contactId,
+      roleId: role.id,
+      role: role.role,
+      orgId: role.orgId,
+    })
+    .from(user)
+    .leftJoin(role, eq(user.id, role.userId));
   res.json(users);
 });
 
@@ -16,7 +27,7 @@ usersRouter.get('/search', async (req: Request, res: Response) => {
   const { 
     search = '', 
     limit = '50', 
-    role,
+    role: roleFilter,
     status
   } = req.query;
 
@@ -27,8 +38,9 @@ usersRouter.get('/search', async (req: Request, res: Response) => {
     // Build filter conditions
     const filterConditions = [];
     
-    if (role && typeof role === 'string' && role !== 'all') {
-      filterConditions.push(eq(user.role, role as any));
+    // Add role filter
+    if (roleFilter && roleFilter !== 'all') {
+      filterConditions.push(eq(role.role, roleFilter as 'admin' | 'staff'));
     }
 
     let whereCondition;
@@ -49,12 +61,40 @@ usersRouter.get('/search', async (req: Request, res: Response) => {
       whereCondition = and(...filterConditions);
     }
 
+    // Join users with roles to get role information
     const results = whereCondition
-      ? await db.select().from(user).where(whereCondition).orderBy(asc(user.username)).limit(maxResults)
-      : await db.select().from(user).orderBy(asc(user.username)).limit(maxResults);
+      ? await db
+          .select({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            contactId: user.contactId,
+            roleId: role.id,
+            role: role.role,
+            orgId: role.orgId,
+          })
+          .from(user)
+          .leftJoin(role, eq(user.id, role.userId))
+          .where(whereCondition)
+          .orderBy(asc(user.username))
+          .limit(maxResults)
+      : await db
+          .select({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            contactId: user.contactId,
+            roleId: role.id,
+            role: role.role,
+            orgId: role.orgId,
+          })
+          .from(user)
+          .leftJoin(role, eq(user.id, role.userId))
+          .orderBy(asc(user.username))
+          .limit(maxResults);
 
     console.log(
-      `✅ Found ${results.length} ${hasSearchQuery ? `user matches for "${search}"` : 'users'}`,
+      `✅ Found ${results.length} ${hasSearchQuery ? `user matches for "${search}"` : 'users'}${roleFilter && roleFilter !== 'all' ? ` with role "${roleFilter}"` : ''}`,
     );
     
     res.json({
@@ -73,19 +113,35 @@ usersRouter.get('/search', async (req: Request, res: Response) => {
 // GET user by ID
 usersRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
-  const result = await db.select().from(user).where(eq(user.id, id));
+  const result = await db
+    .select({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      contactId: user.contactId,
+      roleId: role.id,
+      role: role.role,
+      orgId: role.orgId,
+    })
+    .from(user)
+    .leftJoin(role, eq(user.id, role.userId))
+    .where(eq(user.id, id));
   if (result.length === 0) return res.status(404).json({ error: 'Not found' });
   res.json(result[0]);
 });
 
 // POST create user
 usersRouter.post('/', async (req, res) => {
-  const { role, username, email, contactId } = req.body;
+  const { role: userRole, username, email, contactId, orgId } = req.body;
   
   try {
     const insertedUser = await db.insert(user).values({ username, email, contactId }).returning();
-    const insertedRole = await db.insert(role).values({role, userId: insertedUser[0].id})
-    res.status(201).json({ user: {...insertedUser[0]}, role: insertedRole});
+    const insertedRole = await db.insert(role).values({ 
+      role: userRole, 
+      userId: insertedUser[0].id, 
+      orgId: orgId 
+    }).returning();
+    res.status(201).json({ user: {...insertedUser[0]}, role: insertedRole[0]});
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create user' });
@@ -95,7 +151,7 @@ usersRouter.post('/', async (req, res) => {
 // PUT update user by ID
 usersRouter.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { role, username, email, contactId } = req.body;
+  const { role: userRole, username, email, contactId } = req.body;
 
   try {
     const updated = await db
@@ -104,9 +160,13 @@ usersRouter.put('/:id', async (req, res) => {
       .where(eq(user.id, id))
       .returning();
 
-    const updatedRole = await db.update(role).set({role}).where(eq(role.userId, id))
+    const updatedRole = await db
+      .update(role)
+      .set({ role: userRole })
+      .where(eq(role.userId, id))
+      .returning();
 
-    res.json({user: {...updated, role: updatedRole}});
+    res.json({user: updated[0], role: updatedRole[0]});
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user' });
   }

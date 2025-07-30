@@ -61,7 +61,17 @@ class ApiService {
     }
   }
 
-  async getFullContacts(search?: string): Promise<Contact[]> {
+  async getFullContacts(
+    search?: string, 
+    filters?: {
+      year?: string;
+      gender?: string;
+      campus?: string;
+      major?: string;
+      isInterested?: string;
+      followUpStatusNumber?: string;
+    }
+  ): Promise<Contact[]> {
     const allFields = [
       'id', 'firstName', 'lastName', 'phoneNumber', 'email', 
       'campus', 'major', 'year', 'isInterested', 'gender', 
@@ -70,6 +80,17 @@ class ApiService {
     
     const params = new URLSearchParams();
     if (search) params.append('search', search);
+    
+    // Add filter parameters
+    if (filters) {
+      if (filters.year && filters.year !== 'all') params.append('year', filters.year);
+      if (filters.gender && filters.gender !== 'all') params.append('gender', filters.gender);
+      if (filters.campus && filters.campus !== 'all') params.append('campus', filters.campus);
+      if (filters.major && filters.major !== 'all') params.append('major', filters.major);
+      if (filters.isInterested && filters.isInterested !== 'all') params.append('isInterested', filters.isInterested);
+      if (filters.followUpStatusNumber && filters.followUpStatusNumber !== 'all') params.append('followUpStatusNumber', filters.followUpStatusNumber);
+    }
+    
     params.append('fields', allFields.join(','));
     
     const queryString = params.toString();

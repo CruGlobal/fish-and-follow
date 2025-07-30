@@ -286,7 +286,7 @@ protectedRouter.use('/whatsapp', whatsappRouter);
 app.use('/api', protectedRouter);
 
 // Error handling middleware
-app.use((err: any, req: Request, res: Response) => {
+app.use((err: any, req: Request, res: Response, next: any) => {
   console.error('Error:', err);
   res.status(500).json({
     error: 'Internal server error',

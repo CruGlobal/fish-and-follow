@@ -3,8 +3,6 @@ import type { Contact, YearEnum, GenderEnum } from "~/types/contact";
 import { yearOptions, genderOptions } from "~/types/contact";
 import { useFollowUpStatuses, getStatusDescription } from "~/hooks/useFollowUpStatuses";
 import { NotesDisplay } from "./NotesDisplay";
-import { useServerSearch } from "~/hooks/useServerSearch";
-import { apiService } from "~/lib/api";
 
 interface ContactsTableProps {
   contacts: Contact[];
@@ -43,45 +41,25 @@ export function ContactsTable({
   const [editValue, setEditValue] = useState<string>("");
   const [sortField, setSortField] = useState<keyof Contact>("lastName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [filterGender, setFilterGender] = useState<GenderEnum | "all">("all");
-  const [filterYear, setFilterYear] = useState<YearEnum | "all">("all");
-  const [filterInterested, setFilterInterested] = useState<"all" | "true" | "false">("all");
-  const [filterFollowUpStatus, setFilterFollowUpStatus] = useState<string>("all");
+  
+  // Use server-side filters from props instead of local state
+  const filterGender = filters.gender || "all";
+  const filterYear = filters.year || "all";
+  const filterInterested = filters.isInterested || "all";
+  const filterFollowUpStatus = filters.followUpStatusNumber || "all";
+  const searchQuery = filters.search || "";
 
-  // Server-side search hook
-  const {
-    data: searchResults,
-    isLoading: isSearchLoading,
-    error: searchError,
-    search,
-    searchQuery,
-    clearSearch
-  } = useServerSearch({
-    searchFunction: (query: string) => apiService.getFullContacts(query),
-    debounceMs: 200,
-    minSearchLength: 1
-  });
+  // Since we're using server-side filtering, we don't need the useServerSearch hook
+  // The parent component handles all server communication
+  const contactsToDisplay = contacts;
 
-  // Use search results when there's a search query, otherwise use passed contacts
-  const contactsToDisplay = searchQuery.trim() ? searchResults : contacts;
-
-  // Filtrage et tri des contacts (now works on contactsToDisplay which may be search results)
+  // For server-side filtering, we just need to sort the contacts that come from the server
+  // All filtering is handled server-side by the parent component
   const filteredAndSortedContacts = useMemo(() => {
-    let filtered = contactsToDisplay.filter(contact => {
-      // Server-side search handles text search, so we only need to filter by local filters
-      const matchesGender = filterGender === "all" || contact.gender === filterGender;
-      const matchesYear = filterYear === "all" || contact.year === filterYear;
-      const matchesInterested = filterInterested === "all" || 
-        (filterInterested === "true" && contact.isInterested) ||
-        (filterInterested === "false" && !contact.isInterested);
-      const matchesFollowUpStatus = filterFollowUpStatus === "all" || 
-        contact.followUpStatusNumber?.toString() === filterFollowUpStatus;
+    let sorted = [...contactsToDisplay];
 
-      return matchesGender && matchesYear && matchesInterested && matchesFollowUpStatus;
-    });
-
-    // Tri
-    filtered.sort((a, b) => {
+    // Only sort locally, filtering is done server-side
+    sorted.sort((a, b) => {
       const aValue = a[sortField];
       const bValue = b[sortField];
       
@@ -99,8 +77,8 @@ export function ContactsTable({
       return sortDirection === "asc" ? comparison : -comparison;
     });
 
-    return filtered;
-  }, [contactsToDisplay, sortField, sortDirection, filterGender, filterYear, filterInterested, filterFollowUpStatus]);
+    return sorted;
+  }, [contactsToDisplay, sortField, sortDirection]);
 
   const handleSort = (field: keyof Contact) => {
     if (sortField === field) {
@@ -325,7 +303,7 @@ export function ContactsTable({
           {/* Recherche */}
           <div className="lg:col-span-2">
             <div className="relative">
-              {isSearchLoading ? (
+              {isFilterLoading ? (
                 <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -339,12 +317,12 @@ export function ContactsTable({
                 type="text"
                 placeholder="Search by name, email, phone, campus..."
                 value={searchQuery}
-                onChange={(e) => search(e.target.value)}
+                onChange={(e) => onUpdateFilters?.({ ...filters, search: e.target.value })}
                 className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               {searchQuery && (
                 <button
-                  onClick={clearSearch}
+                  onClick={() => onUpdateFilters?.({ ...filters, search: "" })}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 hover:text-gray-600"
                 >
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -359,7 +337,7 @@ export function ContactsTable({
           <div>
             <select
               value={filterGender}
-              onChange={(e) => setFilterGender(e.target.value as GenderEnum | "all")}
+              onChange={(e) => onUpdateFilters?.({ ...filters, gender: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All genders</option>
@@ -373,7 +351,7 @@ export function ContactsTable({
           <div>
             <select
               value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value as YearEnum | "all")}
+              onChange={(e) => onUpdateFilters?.({ ...filters, year: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All years</option>
@@ -387,7 +365,7 @@ export function ContactsTable({
           <div>
             <select
               value={filterInterested}
-              onChange={(e) => setFilterInterested(e.target.value as "all" | "true" | "false")}
+              onChange={(e) => onUpdateFilters?.({ ...filters, isInterested: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All</option>
@@ -400,7 +378,7 @@ export function ContactsTable({
           <div>
             <select
               value={filterFollowUpStatus}
-              onChange={(e) => setFilterFollowUpStatus(e.target.value)}
+              onChange={(e) => onUpdateFilters?.({ ...filters, followUpStatusNumber: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All statuses</option>

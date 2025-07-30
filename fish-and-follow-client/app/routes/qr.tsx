@@ -6,7 +6,7 @@ export function meta() {
 }
 
 export default function QR() {
-  const organization = "test";
+  const organization = "1f8ff79f-364f-4708-932d-dc6733111759";
   const imageUrl = `/api/qr/${organization}`
   return (
     <div className="min-h-screen app-bg py-12">

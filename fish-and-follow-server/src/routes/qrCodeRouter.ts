@@ -12,7 +12,7 @@ qrRouter.get('/:orgId', async (req, res) => {
   const download = req.query.download;
   console.log('Requesting QR Code for org', organizationId);
   // Todo get by organization - exact format not set.
-  const url = `${process.env.BASE_URL}?organization=${organizationId}`;
+  const url = `${process.env.BASE_URL}/contact-form?organization=${organizationId}`;
   try {
     // Can customize the QR code color, these match our theme but can 
     // adjust when we do the front end

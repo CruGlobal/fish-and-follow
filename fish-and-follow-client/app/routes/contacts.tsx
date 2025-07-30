@@ -17,7 +17,18 @@ export function meta({ }: Route.MetaArgs) {
 
 export default function Contacts() {
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const { contacts, addContact, exportContacts, updateContact, deleteContact, error } = useContacts();
+  const { 
+    contacts, 
+    isLoading,
+    isFilterLoading,
+    filters,
+    updateFilters,
+    addContact, 
+    exportContacts, 
+    updateContact, 
+    deleteContact, 
+    error 
+  } = useContacts();
 
   const handleExport = (filteredContacts: Contact[], format: 'csv' | 'excel') => {
     // Additional validation before actual export
@@ -204,6 +215,10 @@ export default function Contacts() {
 
             <ContactsTable
               contacts={contacts}
+              isLoading={isLoading}
+              isFilterLoading={isFilterLoading}
+              filters={filters}
+              onUpdateFilters={updateFilters}
               onUpdateContact={updateContact}
               onDeleteContact={deleteContact}
             />
