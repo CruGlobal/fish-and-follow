@@ -56,7 +56,7 @@ export function useContacts() {
       setIsLoading(false);
       setIsFilterLoading(false);
     }
-  }, [filters]);
+  }, []); // Remove filters from dependency array to prevent infinite loops
 
   // Debounced fetch function for filter updates
   const debouncedFetchContacts = useCallback((filtersToUse: typeof filters) => {

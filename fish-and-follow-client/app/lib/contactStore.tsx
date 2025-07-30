@@ -177,22 +177,3 @@ export function useContacts() {
     exportContacts,
   };
 }
-
-export const yearOptions: { value: YearEnum; label: string }[] = [
-  { value: "1st_year", label: "1st Year" },
-  { value: "2nd_year", label: "2nd Year" },
-  { value: "3rd_year", label: "3rd Year" },
-  { value: "4th_year", label: "4th Year" },
-  { value: "5th_year", label: "5th Year" },
-  { value: "6th_year", label: "6th Year" },
-  { value: "7th_year", label: "7th Year" },
-  { value: "8th_year", label: "8th Year" },
-  { value: "9th_year", label: "9th Year" },
-  { value: "10th_year", label: "10th Year" },
-  { value: "11th_year", label: "11th Year" },
-];
-
-export const genderOptions: { value: GenderEnum; label: string }[] = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" }
-];

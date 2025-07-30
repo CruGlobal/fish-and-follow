@@ -63,6 +63,7 @@ interface ContactFormData {
   isInterested?: boolean;
   notes?: string;
   followUpStatusNumber?: number;
+  orgId?: string; // Optionnel pour les nouveaux contacts
 }
 
 interface NewContactData {
