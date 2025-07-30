@@ -11,20 +11,16 @@ import {
 export const RoleEnum = pgEnum('role_enum', ['admin', 'staff']);
 
 export const YearEnum = pgEnum('year_enum', [
-  '1st_year',
-  '2nd_year',
-  '3rd_year',
-  '4th_year',
-  '5th_year',
-  '6th_year',
-  '7th_year',
-  '8th_year',
-  '9th_year',
-  '10th_year',
-  '11th_year',
+  '1',
+  '2', 
+  '3',
+  '4',
+  '5',
+  'Master',
+  'PhD'
 ]);
 
-export const GenderEnum = pgEnum('gender_enum', ['male', 'female']);
+export const GenderEnum = pgEnum('gender_enum', ['male', 'female', 'other', 'prefer_not_to_say']);
 
 export const user = pgTable('user', {
   id: uuid('id').primaryKey().defaultRandom(),

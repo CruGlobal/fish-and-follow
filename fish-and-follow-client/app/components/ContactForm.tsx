@@ -1,5 +1,4 @@
 import { useState } from "react";
-import SubmitConfirmation from "./SubmitConfirmation";
 import GenderDropdown from "app/components/GenderDropdown";
 import YearDropdown from "app/components/YearDropdown";
 import CampusDropdown from "app/components/CampusDropdown";

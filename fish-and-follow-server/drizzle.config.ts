@@ -11,10 +11,12 @@ const databasePassword = process.env.DB_ENV_POSTGRESQL_PASS;
 const databaseURL = `postgres://${databaseUser}:${databasePassword}@${databaseAddress}/${databaseName}`;
 
 export default defineConfig({
-  schema: './src/db/schema.ts', // where your tables will go
-  out: './drizzle',             // generated SQL files
+  schema: './src/db/schema.ts',
+  out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseURL!,
   },
+  verbose: false, // Suppress verbose output
+  strict: false,  // Less strict mode
 });
