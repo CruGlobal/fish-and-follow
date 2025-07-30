@@ -1,7 +1,6 @@
 import { useState } from "react";
 import GenderDropdown from "app/components/GenderDropdown";
 import YearDropdown from "app/components/YearDropdown";
-import CampusDropdown from "app/components/CampusDropdown";
 import { apiService } from "~/lib/api";
 import type { ContactFormData, YearEnum, GenderEnum } from "~/types/contact";
 
@@ -16,7 +15,8 @@ const initialFormData: ContactFormData = {
   gender: "male" as GenderEnum,
   isInterested: true,
   followUpStatusNumber: 1,
-  notes: "",
+  notes: "",// Assuming orgId is part of the form data
+  orgId: "", // Add orgId to the form data
 };
 
 export function ContactForm() {

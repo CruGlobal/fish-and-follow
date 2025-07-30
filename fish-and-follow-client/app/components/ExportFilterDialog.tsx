@@ -112,15 +112,6 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
         }
       }
 
-      // Search term filter
-      if (filters.searchTerm) {
-        const searchLower = filters.searchTerm.toLowerCase();
-        const searchableText = `${contact.firstName} ${contact.lastName} ${contact.email || ""} ${contact.phoneNumber} ${contact.campus} ${contact.major}`.toLowerCase();
-        if (!searchableText.includes(searchLower)) {
-          return false;
-        }
-      }
-
       // Advanced filters
       if (filters.advancedFilters.hasEmail !== "all") {
         const hasEmail = !!contact.email && contact.email.trim() !== "";
@@ -172,9 +163,6 @@ export function ExportFilterDialog({ contacts, onExport, onClose }: ExportFilter
   };
 
   const handleExport = async () => {
-    // Set loading state
-    setIsExporting(true);
-    
     try {
       // JavaScript validation controls
       
@@ -276,8 +264,6 @@ Ready to export?`;
     } catch (error) {
       console.error('❌ Export failed:', error);
       alert(`❌ Export failed!\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or contact support.`);
-    } finally {
-      setIsExporting(false);
     }
   };
 
@@ -364,6 +350,7 @@ Ready to export?`;
                   ))}
                 </div>
               </div>
+            </div>
 
             {/* Major Filter */}
             <div className="mb-6">

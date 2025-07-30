@@ -5,11 +5,13 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import ModernNavigation from "./components/ModernNavigation";
+import { AuthProvider } from "./contexts/AuthContext";
 
 export const links = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -36,15 +38,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
         see: https://github.com/vite-pwa/vite-plugin-pwa/issues/809 */}
         <link rel="manifest" href="/manifest.webmanifest" />
       </head>
-      <body className="bg-gradient-to-br from-[#CDF5FD] to-white">
-        <div className="min-h-screen">
-          <ModernNavigation />
-          <div className="lg:pl-64 pb-16 lg:pb-0">
-            {children}
+      <body className="app-bg">
+        <AuthProvider>
+          <div className="min-h-screen">
+            <ModernNavigation />
+            <div className="lg:pl-64 pb-16 lg:pb-0">
+              {children}
+            </div>
           </div>
-        </div>
-        <ScrollRestoration />
-        <Scripts />
+          <ScrollRestoration />
+          <Scripts />
+        </AuthProvider>
       </body>
     </html>
   );
@@ -71,7 +75,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen app-bg flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center">

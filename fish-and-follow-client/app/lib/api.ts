@@ -1,7 +1,7 @@
-import type { Contact, ContactFormData, ContactSearchResponse, ContactField, ContactFieldsResponse, ContactBrief } from "~/types/contact";
+import type { Contact, ContactBrief, ContactFormData, ContactField, ContactFieldsResponse, ContactSearchResponse } from "~/types/contact";
+import type { UserRole, User, NewUserData } from "~/types/user";
+import type { Template, TemplateItem, TemplateComponent, BulkTemplateMessageRequest, BulkTemplateMessageResponse } from "~/types/bulkMessaging";
 import type { FollowUpStatus, NewFollowUpStatusData } from "~/types/followUpStatus";
-import type { NewUserData, User } from "~/types/user";
-import type { Template, BulkTemplateMessageRequest, BulkTemplateMessageResponse } from "~/types/bulkMessaging";
 
 class ApiService {
   private async request<T>(
@@ -25,10 +25,6 @@ class ApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      if (response.status === 204) {
-        return {} as T; // Return empty object for 204 No Content
-      }
-
       return await response.json();
     } catch (error) {
       console.error("API request failed:", error);
@@ -44,62 +40,11 @@ class ApiService {
     });
   }
 
-  async importContacts(contacts: ContactFormData[]): Promise<{
-    successful: number;
-    failed: number;
-    errors: Array<{ contact: ContactFormData; error: string; index: number }>;
-  }> {
-    return this.request("/contacts/import", {
-      method: "POST",
-      body: JSON.stringify({ contacts }),
-    });
-  }
-
-  // Private helper method to build query parameters for contact searches
-  private buildContactSearchParams(
-    search?: string, 
-    fields?: string[], 
-    filters?: {
-      year?: string;
-      gender?: string;
-      campus?: string;
-      major?: string;
-      isInterested?: string;
-      followUpStatusNumber?: string;
-    }
-  ): URLSearchParams {
+  async getContacts(search?: string, fields?: string[]): Promise<ContactBrief[]> {
     const params = new URLSearchParams();
-    
     if (search) params.append('search', search);
     if (fields && fields.length > 0) params.append('fields', fields.join(','));
     
-    // Add filter parameters
-    if (filters) {
-      if (filters.year && filters.year !== 'all') params.append('year', filters.year);
-      if (filters.gender && filters.gender !== 'all') params.append('gender', filters.gender);
-      if (filters.campus && filters.campus !== 'all') params.append('campus', filters.campus);
-      if (filters.major && filters.major !== 'all') params.append('major', filters.major);
-      if (filters.isInterested && filters.isInterested !== 'all') params.append('isInterested', filters.isInterested);
-      if (filters.followUpStatusNumber && filters.followUpStatusNumber !== 'all') params.append('followUpStatusNumber', filters.followUpStatusNumber);
-    }
-    
-    return params;
-  }
-
-  // Private helper method to make contact search requests
-  private async makeContactSearchRequest<T>(
-    search?: string, 
-    fields?: string[], 
-    filters?: {
-      year?: string;
-      gender?: string;
-      campus?: string;
-      major?: string;
-      isInterested?: string;
-      followUpStatusNumber?: string;
-    }
-  ): Promise<T[]> {
-    const params = this.buildContactSearchParams(search, fields, filters);
     const queryString = params.toString();
     const endpoint = `/contacts/search${queryString ? `?${queryString}` : ''}`;
     
@@ -109,43 +54,47 @@ class ApiService {
       if (!response.contacts || !Array.isArray(response.contacts)) {
         return [];
       }
-      return response.contacts as T[];
+      return response.contacts;
     } catch (error) {
       console.error('Error fetching contacts:', error);
       return []; // Return empty array on error
     }
   }
 
-  async getContacts(search?: string, fields?: string[], filters?: {
-    year?: string;
-    gender?: string;
-    campus?: string;
-    major?: string;
-    isInterested?: string;
-    followUpStatusNumber?: string;
-  }): Promise<ContactBrief[]> {
-    return this.makeContactSearchRequest<ContactBrief>(search, fields, filters);
-  }
-
-  async getFullContacts(search?: string, filters?: {
-    year?: string;
-    gender?: string;
-    campus?: string;
-    major?: string;
-    isInterested?: string;
-    followUpStatusNumber?: string;
-  }): Promise<Contact[]> {
+  async getFullContacts(search?: string): Promise<Contact[]> {
     const allFields = [
       'id', 'firstName', 'lastName', 'phoneNumber', 'email', 
       'campus', 'major', 'year', 'isInterested', 'gender', 
-      'followUpStatusNumber', 'followUpStatusDescription', 'notes', 'createdAt', 'updatedAt'
+      'followUpStatusNumber', 'createdAt', 'updatedAt'
     ];
     
-    return this.makeContactSearchRequest<Contact>(search, allFields, filters);
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    params.append('fields', allFields.join(','));
+    
+    const queryString = params.toString();
+    const endpoint = `/contacts/search${queryString ? `?${queryString}` : ''}`;
+    
+    try {
+      const response = await this.request<ContactSearchResponse>(endpoint);
+      // Handle case where response.contacts is undefined or null
+      if (!response.contacts || !Array.isArray(response.contacts)) {
+        return [];
+      }
+      return response.contacts.map(result => result as Contact);
+    } catch (error) {
+      console.error('Error fetching full contacts:', error);
+      return []; // Return empty array on error
+    }
   }
 
   async searchContacts(query: string): Promise<ContactBrief[]> {
-    return this.getContacts(query);
+    try {
+      return await this.getContacts(query);
+    } catch (error) {
+      console.error('Error searching contacts:', error);
+      return []; // Return empty array on error
+    }
   }
 
   async getContact(id: string): Promise<Contact> {
@@ -169,8 +118,7 @@ class ApiService {
   async getUsers(): Promise<User[]> {
     return this.request<User[]>("/users");
   }
-
-  async searchUsers(
+    async searchUsers(
     search?: string,
     filters?: {
       role?: string;
@@ -207,47 +155,6 @@ class ApiService {
     return this.request<void>(`/users/${id}`, {
       method: "DELETE",
     });
-  }
-
-  // Auth endpoints
-  async getAuthStatus(): Promise<{ authenticated: boolean; user: any | null }> {
-    // Call the backend's auth status endpoint directly (not through /api since it's not protected)
-    const url = "http://localhost:3000/auth/status";
-    const response = await fetch(url, {
-      credentials: 'include', // Include cookies
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  }
-
-  // Redirect to backend's OAuth login
-  redirectToLogin(): void {
-    window.location.href = "http://localhost:3000/signin";
-  }
-
-  // Call backend's logout endpoint
-  async logout(): Promise<void> {
-    const url = "http://localhost:3000/signout";
-    const response = await fetch(url, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
   }
 
   // Template endpoints
