@@ -183,6 +183,23 @@ class ApiService {
     });
   }
 
+  async getUserStats(): Promise<{
+    total: number;
+    adminCount: number;
+    staffCount: number;
+  }> {
+    const response = await this.request<{
+      success: boolean;
+      stats: {
+        total: number;
+        adminCount: number;
+        staffCount: number;
+      };
+      timestamp: string;
+    }>("/users/stats");
+    return response.stats;
+  }
+
   // Template endpoints
   async getTemplates(): Promise<Template> {
     return this.request<Template>("/whatsapp/templates");

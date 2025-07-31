@@ -337,22 +337,6 @@ export function UsersTable({
             </div>
           </div>
         </div>
-
-        {/* Enhanced Statistics */}
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl border border-[#A0E9FF]/20">
-            <div className="text-sm text-gray-500">Total Users</div>
-            <div className="text-2xl font-bold bg-gradient-to-r from-[#00A9FF] to-[#89CFF3] bg-clip-text text-transparent">{displayUsers.length}</div>
-          </div>
-          <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl border border-[#A0E9FF]/20">
-            <div className="text-sm text-gray-500">Administrators</div>
-            <div className="text-2xl font-bold text-[#00A9FF]">{displayUsers.filter((u: User) => u.role === 'admin').length}</div>
-          </div>
-          <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl border border-[#A0E9FF]/20">
-            <div className="text-sm text-gray-500">Staff Members</div>
-            <div className="text-2xl font-bold text-[#89CFF3]">{displayUsers.filter((u: User) => u.role === 'staff').length}</div>
-          </div>
-        </div>
       </div>
 
       {/* Content Area */}
