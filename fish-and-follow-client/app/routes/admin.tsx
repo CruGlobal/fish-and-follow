@@ -7,6 +7,7 @@ import { ExportFilterDialog } from "~/components/ExportFilterDialog";
 import { useUsers } from "~/lib/userStore";
 import { useContacts } from "~/hooks/useContacts";
 import { useContactStats } from "~/hooks/useContactStats";
+import { useUserStats } from "~/hooks/useUserStats";
 import { StatCard, PageHeader, ContentCard } from "~/components/ui";
 import { UsersTable } from "~/components/UsersTable";
 
@@ -30,6 +31,7 @@ export default function Admin() {
   } = useUsers();
   const { contacts, exportContacts } = useContacts();
   const { stats: contactStats } = useContactStats();
+  const { stats: userStats } = useUserStats();
 
   // Helper function to update user role
   const handleUpdateRole = (id: string, role: UserRole) => {
@@ -52,11 +54,12 @@ export default function Admin() {
     exportContacts(filteredContacts, format);
   };
 
-  // Calculate user statistics (keep these frontend-based as they're user-specific)
-  const totalUsers = users.length;
-  const adminUsers = users.filter((user) => user.role === "admin").length;
-  const staffUsers = users.filter((user) => user.role === "staff").length;
-  const activeUsers = users.filter((user) => user.isActive).length;
+  // Use server-based stats with fallbacks for loading state
+  const displayUserStats = userStats || {
+    total: 0,
+    adminCount: 0,
+    staffCount: 0,
+  };
 
   // Use server-based contact stats instead of frontend calculation
   const totalContacts = contactStats?.total || 0;
@@ -83,10 +86,10 @@ export default function Admin() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <StatCard
             title="Total Users"
-            value={totalUsers}
-            subtitle={`Active: ${activeUsers}`}
+            value={displayUserStats.total}
+            subtitle={`Admins: ${displayUserStats.adminCount}`}
             percentage={`${
-              totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0
+              displayUserStats.total > 0 ? Math.round((displayUserStats.adminCount / displayUserStats.total) * 100) : 0
             }%`}
             icon={
               <svg
@@ -109,9 +112,9 @@ export default function Admin() {
 
           <StatCard
             title="Administrators"
-            value={adminUsers}
-            subtitle={`Staff: ${staffUsers}`}
-            percentage={`Total: ${totalUsers}`}
+            value={displayUserStats.adminCount}
+            subtitle={`Staff: ${displayUserStats.staffCount}`}
+            percentage={`Total: ${displayUserStats.total}`}
             icon={
               <svg
                 className="w-6 h-6 text-white"
@@ -256,7 +259,7 @@ export default function Admin() {
                 User Management
               </h3>
               <span className="text-sm text-gray-500">
-                {totalUsers} users total
+                {displayUserStats.total} users total
               </span>
             </div>
           </div>

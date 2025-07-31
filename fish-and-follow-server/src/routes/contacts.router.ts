@@ -212,6 +212,44 @@ contactsRouter.get('/fields', (_req, res) => {
   }
 });
 
+// Get contact statistics
+contactsRouter.get('/stats', async (_req, res) => {
+  try {
+    // Get total count and interested count in one efficient query
+    const [totalResult, interestedResult, maleResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(contact),
+      db.select({ count: sql<number>`count(*)` }).from(contact).where(eq(contact.isInterested, true)),
+      db.select({ count: sql<number>`count(*)` }).from(contact).where(eq(contact.gender, 'male')),
+    ]);
+
+    const total = Number(totalResult[0]?.count || 0);
+    const interested = Number(interestedResult[0]?.count || 0);
+    const maleCount = Number(maleResult[0]?.count || 0);
+
+    // Calculate the derived stats
+    const stats = {
+      total,
+      interested,
+      notInterested: total - interested, // Total minus interested
+      maleCount,
+      femaleCount: total - maleCount, // Total minus male
+    };
+
+    res.json({
+      success: true,
+      stats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error fetching contact stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch contact statistics',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Get contact by ID
 contactsRouter.get('/:id', async (req, res) => {
   const { id } = req.params;

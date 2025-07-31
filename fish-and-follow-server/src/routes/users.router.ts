@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/client';
 import { user, role } from '../db/schema';
-import { eq, and, or, like, ilike, asc } from 'drizzle-orm';
+import { eq, and, or, like, ilike, asc, sql } from 'drizzle-orm';
 
 export const usersRouter = Router();
 
@@ -107,6 +107,42 @@ usersRouter.get('/search', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('User search error:', error);
     res.status(500).json({ error: 'Failed to search users' });
+  }
+});
+
+// Get user statistics
+usersRouter.get('/stats', async (_req, res) => {
+  try {
+    // Get total users and admin count in efficient queries
+    const [totalResult, adminResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(user),
+      db.select({ count: sql<number>`count(*)` })
+        .from(role)
+        .where(eq(role.role, 'admin')),
+    ]);
+
+    const total = Number(totalResult[0]?.count || 0);
+    const adminCount = Number(adminResult[0]?.count || 0);
+
+    // Calculate derived stats
+    const stats = {
+      total,
+      adminCount,
+      staffCount: total - adminCount, // Total minus admin (since roles are binary: admin/staff)
+    };
+
+    res.json({
+      success: true,
+      stats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch user statistics',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
   }
 });
 
