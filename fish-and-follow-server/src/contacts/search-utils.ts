@@ -30,6 +30,8 @@ const FIELD_METADATA: Record<string, { label: string; type: string }> = {
   isInterested: { label: 'Is Interested', type: 'boolean' },
   gender: { label: 'Gender', type: 'select' },
   followUpStatusNumber: { label: 'Follow Up Status', type: 'number' },
+  notes: { label: 'Notes', type: 'text' },
+  orgId: { label: 'Organization ID', type: 'text' },
 };
 
 // Field validation and selection utilities
@@ -51,6 +53,8 @@ const FIELD_TO_COLUMN_MAP: Record<string, string> = {
   isInterested: 'is_interested',
   gender: 'gender',
   followUpStatusNumber: 'follow_up_status',
+  notes: 'notes',
+  orgId: 'org_id',
 };
 
 /**
