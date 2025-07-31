@@ -12,26 +12,26 @@ export const roleRouter = Router();
 
 // GET all role
 roleRouter.get('/', async (_req, res) => {
-  // try {
+  try {
     const roles = await db.select().from(role);
     res.json(roles);
-  // } catch (error) {
-  //   console.error('Fetch roles error:', error);
-  //   res.status(500).json({ error: 'Failed to fetch roles' });
-  // }
+  } catch (error) {
+    console.error('Fetch roles error:', error);
+    res.status(500).json({ error: 'Failed to fetch roles' });
+  }
 });
 
 // GET role by ID
 roleRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
-  // try {
+  try {
     const result = await db.select().from(role).where(eq(role.id, id));
     if (result.length === 0) return res.status(404).json({ error: 'Role not found' });
     res.json(result[0]);
-  // } catch (error) {
-  //   console.error('Fetch role by ID error:', error);
-  //   res.status(500).json({ error: 'Failed to fetch role' });
-  // }
+  } catch (error) {
+    console.error('Fetch role by ID error:', error);
+    res.status(500).json({ error: 'Failed to fetch role' });
+  }
 });
 
 // POST create role
