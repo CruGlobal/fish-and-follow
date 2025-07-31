@@ -1,0 +1,1 @@
+ALTER TABLE "contact" ADD COLUMN "notes" varchar(2500) DEFAULT '';

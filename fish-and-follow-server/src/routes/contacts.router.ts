@@ -1,12 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db/client';
 import { contact } from '../db/schema';
-import { eq, sql, asc } from 'drizzle-orm';
-import {
-  parseFieldsParameter,
-  getContactFieldObjects,
-  getColumnNamesWithAliases,
-} from '../contacts/search-utils';
+import { eq, sql, asc, and, or, ilike, desc } from 'drizzle-orm';
+import { parseFieldsParameter, getContactFieldObjects } from '../contacts/search-utils';
 
 export const contactsRouter = Router();
 
@@ -17,94 +13,176 @@ contactsRouter.get('/', async (_req, res) => {
 });
 
 contactsRouter.get('/search', async (req: Request, res: Response) => {
-  const { search = '', threshold = '0.6', limit = '50', fields } = req.query;
+  const {
+    search = '',
+    threshold = '0.6',
+    limit = '50',
+    fields,
+    year,
+    gender,
+    campus,
+    major,
+    isInterested,
+    followUpStatusNumber,
+  } = req.query;
 
-  const searchThreshold = Math.max(0.1, Math.min(1, parseFloat(threshold as string) || 0.6));
   const maxResults = Math.max(1, Math.min(100, parseInt(limit as string) || 50));
   const hasSearchQuery = search && typeof search === 'string' && search.trim();
 
   // Use utility function to parse and validate fields
-  const fieldsToSelect = parseFieldsParameter(fields); // Will return default fields if no fields specified
+  const fieldsToSelect = parseFieldsParameter(fields);
 
-  try {
-    let results;
+  // Build filter conditions using Drizzle ORM
+  const buildFilterConditions = () => {
+    const conditions: any[] = [];
 
-    if (hasSearchQuery) {
-      const searchQuery = search.trim();
-      // More lenient distance calculation for better fuzzy matching
-      const maxDistance = Math.max(1, Math.round((1 - searchThreshold) * Math.max(searchQuery.length, 3)));
+    if (year && year !== 'all') {
+      conditions.push(eq(contact.year, year as any));
+    }
 
-      // Use raw SQL for fuzzy search with levenshtein now that fuzzystrmatch is installed
-      // Convert field names to database column names with aliases for the SQL query
-      const selectClause = fieldsToSelect.length > 0 ? getColumnNamesWithAliases(fieldsToSelect) : '*';
-      
-      // Create search pattern for substring matching
-      const searchPattern = `%${searchQuery.toLowerCase()}%`;
-      
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const rawResults = await db.execute(
-        sql`
-          SELECT ${sql.raw(selectClause)}
-          FROM ${contact}
-          WHERE levenshtein(LOWER(first_name), LOWER(${searchQuery})) <= ${maxDistance}
-            OR levenshtein(LOWER(last_name), LOWER(${searchQuery})) <= ${maxDistance}
-            OR LOWER(first_name) LIKE ${searchPattern}
-            OR LOWER(last_name) LIKE ${searchPattern}
-          ORDER BY 
-            CASE 
-              WHEN LOWER(first_name) = LOWER(${searchQuery}) THEN 1
-              WHEN LOWER(last_name) = LOWER(${searchQuery}) THEN 1
-              WHEN LOWER(first_name) LIKE ${searchPattern} THEN 2
-              WHEN LOWER(last_name) LIKE ${searchPattern} THEN 2
-              WHEN levenshtein(LOWER(first_name), LOWER(${searchQuery})) <= ${maxDistance} THEN 3
-              WHEN levenshtein(LOWER(last_name), LOWER(${searchQuery})) <= ${maxDistance} THEN 3
-              ELSE 4
-            END,
-            LEAST(
-              levenshtein(LOWER(first_name), LOWER(${searchQuery})),
-              levenshtein(LOWER(last_name), LOWER(${searchQuery}))
-            ) ASC
-          LIMIT ${maxResults}
-        `,
-      );
-      results = (rawResults as { rows?: unknown[] }).rows || [];
-      console.log(results);
-    } else {
-      // Use Drizzle query builder for simple queries
-      // Build dynamic select based on requested fields
-      if (fieldsToSelect.length > 0 && !fieldsToSelect.includes('*')) {
-        // Create a select object with only the requested fields
-        const selectFields: Record<string, any> = {};
-        fieldsToSelect.forEach((field) => {
-          if (field in contact) {
-            selectFields[field] = contact[field as keyof typeof contact];
-          }
-        });
+    if (gender && gender !== 'all') {
+      conditions.push(eq(contact.gender, gender as any));
+    }
 
-        results = await db
-          .select(selectFields)
-          .from(contact)
-          .orderBy(asc(contact.firstName), asc(contact.lastName))
-          .limit(maxResults);
-      } else {
-        // Select all fields if no specific fields requested
-        results = await db
-          .select()
-          .from(contact)
-          .orderBy(asc(contact.firstName), asc(contact.lastName))
-          .limit(maxResults);
+    if (campus && campus !== 'all') {
+      conditions.push(eq(contact.campus, campus as string));
+    }
+
+    if (major && major !== 'all') {
+      conditions.push(eq(contact.major, major as string));
+    }
+
+    if (isInterested && isInterested !== 'all') {
+      const isInterestedBool = isInterested === 'true';
+      conditions.push(eq(contact.isInterested, isInterestedBool));
+    }
+
+    if (followUpStatusNumber && followUpStatusNumber !== 'all') {
+      const statusNum = parseInt(followUpStatusNumber as string);
+      if (!isNaN(statusNum)) {
+        conditions.push(eq(contact.followUpStatusNumber, statusNum));
       }
     }
 
+    return conditions;
+  };
+
+  // Build search conditions using Drizzle ORM
+  const buildSearchConditions = (searchQuery: string) => {
+    const searchTerm = `%${searchQuery.toLowerCase()}%`;
+
+    const conditions = [
+      ilike(contact.firstName, searchTerm),
+      ilike(contact.lastName, searchTerm),
+      ilike(contact.email, searchTerm),
+      ilike(contact.phoneNumber, searchTerm),
+      ilike(contact.campus, searchTerm),
+      ilike(contact.major, searchTerm),
+      // Concatenated full name search
+      ilike(sql`CONCAT(${contact.firstName}, ' ', ${contact.lastName})`, searchTerm),
+    ];
+
+    return or(...conditions);
+  };
+
+  try {
+    const filterConditions = buildFilterConditions();
+    let whereConditions: any;
+    
+    if (hasSearchQuery) {
+      const searchQuery = search.trim();
+      const searchConditions = buildSearchConditions(searchQuery);
+
+      // Combine search and filter conditions
+      whereConditions =
+        filterConditions.length > 0
+          ? and(searchConditions, and(...filterConditions))
+          : searchConditions;
+    } else {
+      // Only filter conditions, no search
+      whereConditions = filterConditions.length > 0 ? and(...filterConditions) : undefined;
+    }
+
+    let results;
+
+    // Build the query using Drizzle ORM
+    if (fieldsToSelect.length > 0 && !fieldsToSelect.includes('*')) {
+      // Create a select object with only the requested fields
+      const selectFields: Record<string, any> = {};
+      fieldsToSelect.forEach((field) => {
+        if (field in contact) {
+          selectFields[field] = contact[field as keyof typeof contact];
+        }
+      });
+
+      const baseQuery = db.select(selectFields).from(contact);
+
+      results = await (whereConditions ? baseQuery.where(whereConditions) : baseQuery)
+        .orderBy(
+          ...(hasSearchQuery
+            ? [
+                // Prioritize exact matches in first name
+                desc(
+                  sql`CASE WHEN LOWER(${contact.firstName}) = LOWER(${search}) THEN 1 ELSE 0 END`,
+                ),
+                // Then exact matches in last name
+                desc(
+                  sql`CASE WHEN LOWER(${contact.lastName}) = LOWER(${search}) THEN 1 ELSE 0 END`,
+                ),
+                // Then alphabetical by first name
+                asc(contact.firstName),
+                asc(contact.lastName),
+              ]
+            : [asc(contact.firstName), asc(contact.lastName)]),
+        )
+        .limit(maxResults);
+    } else {
+      // Select all fields
+      const baseQuery = db.select().from(contact);
+
+      results = await (whereConditions ? baseQuery.where(whereConditions) : baseQuery)
+        .orderBy(
+          ...(hasSearchQuery
+            ? [
+                // Prioritize exact matches in first name
+                desc(
+                  sql`CASE WHEN LOWER(${contact.firstName}) = LOWER(${search}) THEN 1 ELSE 0 END`,
+                ),
+                // Then exact matches in last name
+                desc(
+                  sql`CASE WHEN LOWER(${contact.lastName}) = LOWER(${search}) THEN 1 ELSE 0 END`,
+                ),
+                // Then alphabetical by first name
+                asc(contact.firstName),
+                asc(contact.lastName),
+              ]
+            : [asc(contact.firstName), asc(contact.lastName)]),
+        )
+        .limit(maxResults);
+    }
+
     console.log(
-      `✅ Found ${results.length} ${hasSearchQuery ? `matches for "${search}"` : 'contacts'}`,
+      `✅ Found ${results.length} ${hasSearchQuery ? `matches for "${search}"` : 'contacts'}${filterConditions.length > 0 ? ' with filters applied' : ''}`,
     );
+
+    // Debug: show first few results
+    if (results.length > 0) {
+      console.log(
+        '📄 Sample results:',
+        results.slice(0, 2).map((r) => ({
+          firstName: r.firstName,
+          lastName: r.lastName,
+          email: r.email,
+        })),
+      );
+    }
+
     res.json({
       success: true,
       contacts: results,
       query: search || null,
-      threshold: searchThreshold,
       total: results.length,
+      hasFilters: filterConditions.length > 0,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -134,6 +212,44 @@ contactsRouter.get('/fields', (_req, res) => {
   }
 });
 
+// Get contact statistics
+contactsRouter.get('/stats', async (_req, res) => {
+  try {
+    // Get total count and interested count in one efficient query
+    const [totalResult, interestedResult, maleResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(contact),
+      db.select({ count: sql<number>`count(*)` }).from(contact).where(eq(contact.isInterested, true)),
+      db.select({ count: sql<number>`count(*)` }).from(contact).where(eq(contact.gender, 'male')),
+    ]);
+
+    const total = Number(totalResult[0]?.count || 0);
+    const interested = Number(interestedResult[0]?.count || 0);
+    const maleCount = Number(maleResult[0]?.count || 0);
+
+    // Calculate the derived stats
+    const stats = {
+      total,
+      interested,
+      notInterested: total - interested, // Total minus interested
+      maleCount,
+      femaleCount: total - maleCount, // Total minus male
+    };
+
+    res.json({
+      success: true,
+      stats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error fetching contact stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch contact statistics',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Get contact by ID
 contactsRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
@@ -144,14 +260,46 @@ contactsRouter.get('/:id', async (req, res) => {
 
 // POST Create contact
 contactsRouter.post('/', async (req, res) => {
-  const { firstName, lastName, phoneNumber, email, campus, 
-    major, year, isInterested, gender, followUpStatusNumber, orgId } = req.body;
-    
+  const {
+    firstName,
+    lastName,
+    phoneNumber,
+    email,
+    campus,
+    major,
+    year,
+    isInterested,
+    gender,
+    followUpStatusNumber,
+    orgId,
+    notes
+  } = req.body;
+
+  // Ensure orgId is a valid UUID string or use default
+  const orgIdValue: string =
+    typeof orgId === 'string' && orgId.length === 36
+      ? orgId
+      : '1f8ff79f-364f-4708-932d-dc6733111759';
+
   try {
-    const inserted = await db.insert(contact).values({ firstName, lastName, 
-        phoneNumber, email, campus, major, year, isInterested, gender, 
-        followUpStatusNumber, orgId, }).returning();
-        
+    const inserted = await db
+      .insert(contact)
+      .values({
+        firstName,
+        lastName,
+        phoneNumber,
+        email,
+        campus,
+        major,
+        year,
+        isInterested,
+        gender,
+        followUpStatusNumber,
+        orgId: orgIdValue,
+        notes
+      })
+      .returning();
+
     res.status(201).json(inserted[0]);
   } catch (error) {
     console.error(error);
@@ -162,20 +310,44 @@ contactsRouter.post('/', async (req, res) => {
 // PUT Update contact
 contactsRouter.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { firstName, lastName, phoneNumber, email, campus, 
-    major, year, isInterested, gender, followUpStatusNumber, orgId } = req.body;
+  const {
+    firstName,
+    lastName,
+    phoneNumber,
+    email,
+    campus,
+    major,
+    year,
+    isInterested,
+    gender,
+    followUpStatusNumber,
+    orgId,
+    notes,
+  } = req.body;
 
   try {
     const updated = await db
       .update(contact)
-      .set({ firstName, lastName, phoneNumber, email, campus, 
-        major, year, isInterested, gender, followUpStatusNumber, orgId })
+      .set({
+        firstName,
+        lastName,
+        phoneNumber,
+        email,
+        campus,
+        major,
+        year,
+        isInterested,
+        gender,
+        followUpStatusNumber,
+        orgId,
+        notes
+      })
       .where(eq(contact.id, id))
       .returning();
 
     res.json(updated[0]);
   } catch (error) {
-    console.error("Update Error:", error);
+    console.error('Update Error:', error);
     res.status(500).json({ error: 'Failed to update contact' });
   }
 });

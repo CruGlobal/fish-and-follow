@@ -8,12 +8,12 @@ import {
 } from "app/components/ui/dropdown-menu";
 import { Button } from "app/components/ui/button";
 
+import { genderOptions } from "~/types/contact";
+
 type GenderDropdownProps = {
   value: string;
   onChange: (value: string) => void;
 };
-
-const genders = ["Male", "Female"];
 
 export default function GenderDropdown({
   value,
@@ -22,13 +22,13 @@ export default function GenderDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">{value || "Select Gender"}</Button>
+        <Button variant="outline">{genderOptions[value as keyof typeof genderOptions] || "Select Gender"}</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuLabel>Gender</DropdownMenuLabel>
-        {genders.map((gender) => (
+        {Object.entries(genderOptions).map(([gender, label]) => (
           <DropdownMenuItem key={gender} onSelect={() => onChange(gender)}>
-            {gender}
+            {label}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

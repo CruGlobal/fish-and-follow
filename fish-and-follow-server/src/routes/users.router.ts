@@ -1,32 +1,183 @@
-import { eq } from 'drizzle-orm';
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { db } from '../db/client';
-import { user } from '../db/schema';
+import { user, role } from '../db/schema';
+import { eq, and, or, like, ilike, asc, sql } from 'drizzle-orm';
 
 export const usersRouter = Router();
 
 // GET all users
 usersRouter.get('/', async (_req, res) => {
-  const users = await db.select().from(user);
+  const users = await db
+    .select({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      contactId: user.contactId,
+      roleId: role.id,
+      role: role.role,
+      orgId: role.orgId,
+    })
+    .from(user)
+    .leftJoin(role, eq(user.id, role.userId));
   res.json(users);
+});
+
+// GET users with search and filters
+usersRouter.get('/search', async (req: Request, res: Response) => {
+  const { 
+    search = '', 
+    limit = '50', 
+    role: roleFilter,
+    status
+  } = req.query;
+
+  const maxResults = Math.max(1, Math.min(100, parseInt(limit as string) || 50));
+  const hasSearchQuery = search && typeof search === 'string' && search.trim();
+
+  try {
+    // Build filter conditions
+    const filterConditions = [];
+    
+    // Add role filter
+    if (roleFilter && roleFilter !== 'all') {
+      filterConditions.push(eq(role.role, roleFilter as 'admin' | 'staff'));
+    }
+
+    let whereCondition;
+
+    if (hasSearchQuery) {
+      const searchQuery = (search as string).trim();
+      const searchCondition = or(
+        ilike(user.username, `%${searchQuery}%`),
+        ilike(user.email, `%${searchQuery}%`),
+      );
+      
+      if (filterConditions.length > 0) {
+        whereCondition = and(searchCondition, ...filterConditions);
+      } else {
+        whereCondition = searchCondition;
+      }
+    } else if (filterConditions.length > 0) {
+      whereCondition = and(...filterConditions);
+    }
+
+    // Join users with roles to get role information
+    const results = whereCondition
+      ? await db
+          .select({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            contactId: user.contactId,
+            roleId: role.id,
+            role: role.role,
+            orgId: role.orgId,
+          })
+          .from(user)
+          .leftJoin(role, eq(user.id, role.userId))
+          .where(whereCondition)
+          .orderBy(asc(user.username))
+          .limit(maxResults)
+      : await db
+          .select({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            contactId: user.contactId,
+            roleId: role.id,
+            role: role.role,
+            orgId: role.orgId,
+          })
+          .from(user)
+          .leftJoin(role, eq(user.id, role.userId))
+          .orderBy(asc(user.username))
+          .limit(maxResults);
+
+    console.log(
+      `✅ Found ${results.length} ${hasSearchQuery ? `user matches for "${search}"` : 'users'}${roleFilter && roleFilter !== 'all' ? ` with role "${roleFilter}"` : ''}`,
+    );
+    
+    res.json({
+      success: true,
+      users: results,
+      query: search || null,
+      total: results.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('User search error:', error);
+    res.status(500).json({ error: 'Failed to search users' });
+  }
+});
+
+// Get user statistics
+usersRouter.get('/stats', async (_req, res) => {
+  try {
+    // Get total users and admin count in efficient queries
+    const [totalResult, adminResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(user),
+      db.select({ count: sql<number>`count(*)` })
+        .from(role)
+        .where(eq(role.role, 'admin')),
+    ]);
+
+    const total = Number(totalResult[0]?.count || 0);
+    const adminCount = Number(adminResult[0]?.count || 0);
+
+    // Calculate derived stats
+    const stats = {
+      total,
+      adminCount,
+      staffCount: total - adminCount, // Total minus admin (since roles are binary: admin/staff)
+    };
+
+    res.json({
+      success: true,
+      stats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch user statistics',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
 });
 
 // GET user by ID
 usersRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
-  const result = await db.select().from(user).where(eq(user.id, id));
+  const result = await db
+    .select({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      contactId: user.contactId,
+      roleId: role.id,
+      role: role.role,
+      orgId: role.orgId,
+    })
+    .from(user)
+    .leftJoin(role, eq(user.id, role.userId))
+    .where(eq(user.id, id));
   if (result.length === 0) return res.status(404).json({ error: 'Not found' });
   res.json(result[0]);
 });
 
 // POST create user
 usersRouter.post('/', async (req, res) => {
-  const { role, username, email, contactId } = req.body;
+  const { role: userRole, username, email, contactId, orgId } = req.body;
   
   try {
     const insertedUser = await db.insert(user).values({ username, email, contactId }).returning();
-    const insertedRole = await db.insert(role).values({role, userId: insertedUser[0].id})
-    res.status(201).json({ user: {...insertedUser[0]}, role: insertedRole});
+    const insertedRole = await db.insert(role).values({ 
+      role: userRole, 
+      userId: insertedUser[0].id, 
+      orgId: orgId 
+    }).returning();
+    res.status(201).json({ user: {...insertedUser[0]}, role: insertedRole[0]});
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to create user' });
@@ -36,7 +187,7 @@ usersRouter.post('/', async (req, res) => {
 // PUT update user by ID
 usersRouter.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { role, username, email, contactId } = req.body;
+  const { role: userRole, username, email, contactId } = req.body;
 
   try {
     const updated = await db
@@ -45,9 +196,13 @@ usersRouter.put('/:id', async (req, res) => {
       .where(eq(user.id, id))
       .returning();
 
-    const updatedRole = await db.update(role).set({role}).where(eq(role.userId, id))
+    const updatedRole = await db
+      .update(role)
+      .set({ role: userRole })
+      .where(eq(role.userId, id))
+      .returning();
 
-    res.json({user: {...updated, role: updatedRole}});
+    res.json({user: updated[0], role: updatedRole[0]});
   } catch (error) {
     res.status(500).json({ error: 'Failed to update user' });
   }

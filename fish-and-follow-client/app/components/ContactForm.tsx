@@ -1,28 +1,23 @@
 import { useState } from "react";
 import GenderDropdown from "app/components/GenderDropdown";
 import YearDropdown from "app/components/YearDropdown";
-import CampusDropdown from "app/components/CampusDropdown";
-
-interface ContactFormData {
-  firstName: string;
-  lastName: string;
-  phone: string;
-  campus: string;
-  major?: string;
-  year: string;
-  gender: string;
-  message?: string;
-}
+import { apiService } from "~/lib/api";
+import type { ContactFormData, YearEnum, GenderEnum } from "~/types/contact";
+import { Checkbox } from "./ui/checkbox";
 
 const initialFormData: ContactFormData = {
   firstName: "",
   lastName: "",
-  phone: "",
+  phoneNumber: "",
+  email: "",
   campus: "",
   major: "",
-  year: "",
-  gender: "",
-  message: "",
+  year: "1st_year" as YearEnum,
+  gender: "male" as GenderEnum,
+  isInterested: true,
+  followUpStatusNumber: 1,
+  notes: "",// Assuming orgId is part of the form data
+  orgId: "", // Add orgId to the form data
 };
 
 export function ContactForm() {
@@ -31,6 +26,7 @@ export function ContactForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [agreeToTerms, setAgreeToTerms] = useState(false);;
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -47,33 +43,19 @@ export function ContactForm() {
     setIsSubmitting(true);
 
     try {
-      // Optional: Simulate network delay (remove this in production)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const response = await fetch("http://localhost:3000/api/send-sms", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          to: formData.phone,
-          message: `Thanks ${formData.firstName} for submitting your contact!`,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "SMS failed");
-      }
-
+      // Submit contact to database
+      await apiService.submitContact(formData);
+      
       setSubmitted(true);
       setSuccessMessage(
-        "Thanks for submitting your contact! We've sent you a confirmation SMS."
+        `Thanks ${formData.firstName}! Your contact information has been submitted successfully.`
       );
+      
+      // Reset form after successful submission
+      setFormData(initialFormData);
     } catch (error) {
-      console.error("Error submitting form:", error);
-      alert("Something went wrong. Please try again.");
+      console.error("Error submitting contact:", error);
+      alert("Something went wrong while submitting your contact. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -97,7 +79,7 @@ export function ContactForm() {
               required
               value={formData.firstName}
               onChange={handleInputChange}
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 bg-white px-3 py-2"
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] sm:text-sm text-gray-900 bg-white px-3 py-2"
             />
           </div>
           <div>
@@ -114,26 +96,26 @@ export function ContactForm() {
               required
               value={formData.lastName}
               onChange={handleInputChange}
-              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 bg-white px-3 py-2"
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] sm:text-sm text-gray-900 bg-white px-3 py-2"
             />
           </div>
         </div>
 
         <div>
           <label
-            htmlFor="phone"
+            htmlFor="phoneNumber"
             className="block text-sm font-medium text-gray-700"
           >
             WhatsApp Number *
           </label>
           <input
             type="tel"
-            id="phone"
-            name="phone"
+            id="phoneNumber"
+            name="phoneNumber"
             required
-            value={formData.phone}
+            value={formData.phoneNumber}
             onChange={handleInputChange}
-            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 bg-white px-3 py-2"
+            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] sm:text-sm text-gray-900 bg-white px-3 py-2"
           />
         </div>
 
@@ -144,11 +126,14 @@ export function ContactForm() {
           >
             Campus *
           </label>
-          <CampusDropdown
+          <input
+            type="text"
+            id="campus"
+            name="campus"
+            required
             value={formData.campus}
-            onChange={(value) =>
-              setFormData((prev) => ({ ...prev, campus: value }))
-            }
+            onChange={handleInputChange}
+            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] sm:text-sm text-gray-900 bg-white px-3 py-2"
           />
         </div>
 
@@ -166,7 +151,7 @@ export function ContactForm() {
             required
             value={formData.major}
             onChange={handleInputChange}
-            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 bg-white px-3 py-2"
+            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] sm:text-sm text-gray-900 bg-white px-3 py-2"
           />
         </div>
 
@@ -180,7 +165,7 @@ export function ContactForm() {
           <YearDropdown
             value={formData.year}
             onChange={(value) =>
-              setFormData((prev) => ({ ...prev, year: value }))
+              setFormData((prev) => ({ ...prev, year: value as YearEnum }))
             }
           />
         </div>
@@ -195,34 +180,49 @@ export function ContactForm() {
           <GenderDropdown
             value={formData.gender}
             onChange={(value) =>
-              setFormData((prev) => ({ ...prev, gender: value }))
+              setFormData((prev) => ({ ...prev, gender: value as GenderEnum }))
             }
           />
         </div>
 
         <div>
           <label
-            htmlFor="message"
+            htmlFor="notes"
             className="block text-sm font-medium text-gray-700"
           >
             Do you have any questions for us?
           </label>
           <textarea
-            id="message"
-            name="message"
+            id="notes"
+            name="notes"
             rows={4}
-            value={formData.message}
+            value={formData.notes}
             onChange={handleInputChange}
-            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-gray-900 bg-white px-3 py-2"
+            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)] sm:text-sm text-gray-900 bg-white px-3 py-2"
             placeholder="Ask anything..."
           />
+        </div>
+
+        {/* I agree to receive updates and notifications via WhatsApp */}
+        <div className="flex items-center">
+          <Checkbox
+            checked={agreeToTerms}
+            onCheckedChange={(checked) => setAgreeToTerms(checked as boolean)}
+            className="data-[state=checked]:bg-[var(--brand-primary)] data-[state=checked]:border-[var(--brand-primary)]"
+          />
+          <label
+            htmlFor="isInterested"
+            className="ml-2 block text-sm text-gray-700"
+          >
+            I agree to receive updates and notifications
+          </label>
         </div>
 
         <div>
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            disabled={isSubmitting || !agreeToTerms}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[var(--brand-primary)] hover:bg-[var(--brand-secondary)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--brand-primary)] disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? "Submitting..." : "Submit Contact"}
           </button>

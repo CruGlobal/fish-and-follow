@@ -5,11 +5,11 @@ export function meta() {
   ];
 }
 
-export default function home() {
-  const organization = "test";
+export default function QR() {
+  const organization = "1f8ff79f-364f-4708-932d-dc6733111759";
   const imageUrl = `/api/qr/${organization}`
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen app-bg py-12">
       <div className="mx-auto max-w-md">
         <div className="text-center items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-16">Share the Contact Form</h1>

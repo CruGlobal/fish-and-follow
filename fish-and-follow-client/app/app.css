@@ -57,6 +57,19 @@ body {
 
 :root {
   --radius: 0.625rem;
+  
+  /* App Theme Colors - Change these to customize the entire app theme */
+  --app-bg-from: #CDF5FD;
+  --app-bg-to: #ffffff;
+  --brand-primary: #00A9FF;
+  --brand-secondary: #89CFF3;
+  --brand-accent: #A0E9FF;
+  --brand-light: #CDF5FD;
+  --brand-success: #10b981;
+  --brand-warning: #f59e0b;
+  --brand-error: #ef4444;
+  --brand-info: #3b82f6;
+  
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -130,5 +143,23 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .app-bg {
+    background: linear-gradient(to bottom right, var(--app-bg-from), var(--app-bg-to));
+  }
+  
+  .brand-gradient {
+    background: linear-gradient(to right, var(--brand-primary), var(--brand-secondary));
+  }
+  
+  .brand-gradient-reverse {
+    background: linear-gradient(to right, var(--brand-secondary), var(--brand-primary));
+  }
+  
+  .brand-gradient-accent {
+    background: linear-gradient(to right, var(--brand-secondary), var(--brand-accent));
   }
 }

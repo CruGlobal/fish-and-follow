@@ -2,18 +2,19 @@ import React, { useEffect, useState, useCallback } from 'react'
 import DebouncedPaginatedSearch from '~/components/DebouncedPaginatedSearch'
 import SelectedContactsBadges from '~/components/SelectedContactsBadges'
 import TemplateSelector from '~/components/TemplateSelector';
-import { apiService, type ContactSummary } from '~/lib/api';
+import { apiService } from '~/lib/api';
 import { Card, CardContent } from '~/components/ui/card';
 import { ErrorAlert } from '~/components/ui/ErrorAlert';
+import type { ContactBrief } from '~/types/contact';
 
-// Updated interface to match ContactSummary from API
+// Updated interface to match ContactBrief from API
 interface ContactItem {
   name: string;  // Full name (first_name + last_name)
   key: string;   // Contact ID
 }
 
-// Helper function to convert ContactSummary to ContactItem
-const contactToItem = (contact: ContactSummary): ContactItem => {
+// Helper function to convert ContactBrief to ContactItem
+const contactToItem = (contact: ContactBrief): ContactItem => {
   if (!contact || !contact.id) {
     console.warn('Invalid contact object:', contact);
     return {

@@ -1,9 +1,23 @@
 import { useState, useMemo } from "react";
-import type { Contact, GenderEnum, YearEnum } from "../lib/contactStore";
-import { genderOptions, yearOptions } from "../lib/formOptions";
+import type { Contact, YearEnum, GenderEnum } from "~/types/contact";
+import { yearOptions, genderOptions } from "~/types/contact";
+import { useFollowUpStatuses, getStatusDescription } from "~/hooks/useFollowUpStatuses";
+import { NotesDisplay } from "./NotesDisplay";
 
 interface ContactsTableProps {
   contacts: Contact[];
+  isLoading?: boolean;
+  isFilterLoading?: boolean;
+  filters?: {
+    search?: string;
+    year?: string;
+    gender?: string;
+    campus?: string;
+    major?: string;
+    isInterested?: string;
+    followUpStatusNumber?: string;
+  };
+  onUpdateFilters?: (filters: any) => void;
   onUpdateContact: (id: string, updates: Partial<Contact>) => void;
   onDeleteContact: (id: string) => void;
 }
@@ -13,38 +27,39 @@ interface EditingContact {
   field: keyof Contact;
 }
 
-export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: ContactsTableProps) {
+export function ContactsTable({ 
+  contacts, 
+  isLoading = false, 
+  isFilterLoading = false,
+  filters = {}, 
+  onUpdateFilters, 
+  onUpdateContact, 
+  onDeleteContact 
+}: ContactsTableProps) {
+  const { statuses: followUpStatuses } = useFollowUpStatuses();
   const [editingContact, setEditingContact] = useState<EditingContact | null>(null);
   const [editValue, setEditValue] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<keyof Contact>("lastName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [filterGender, setFilterGender] = useState<GenderEnum | "all">("all");
-  const [filterYear, setFilterYear] = useState<YearEnum | "all">("all");
-  const [filterInterested, setFilterInterested] = useState<"all" | "true" | "false">("all");
+  
+  // Use server-side filters from props instead of local state
+  const filterGender = filters.gender || "all";
+  const filterYear = filters.year || "all";
+  const filterInterested = filters.isInterested || "all";
+  const filterFollowUpStatus = filters.followUpStatusNumber || "all";
+  const searchQuery = filters.search || "";
 
-  // Filtrage et tri des contacts
+  // Since we're using server-side filtering, we don't need the useServerSearch hook
+  // The parent component handles all server communication
+  const contactsToDisplay = contacts;
+
+  // For server-side filtering, we just need to sort the contacts that come from the server
+  // All filtering is handled server-side by the parent component
   const filteredAndSortedContacts = useMemo(() => {
-    let filtered = contacts.filter(contact => {
-      const matchesSearch = 
-        contact.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.phoneNumber.includes(searchTerm) ||
-        contact.campus.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.major.toLowerCase().includes(searchTerm.toLowerCase());
+    let sorted = [...contactsToDisplay];
 
-      const matchesGender = filterGender === "all" || contact.gender === filterGender;
-      const matchesYear = filterYear === "all" || contact.year === filterYear;
-      const matchesInterested = filterInterested === "all" || 
-        (filterInterested === "true" && contact.isInterested) ||
-        (filterInterested === "false" && !contact.isInterested);
-
-      return matchesSearch && matchesGender && matchesYear && matchesInterested;
-    });
-
-    // Tri
-    filtered.sort((a, b) => {
+    // Only sort locally, filtering is done server-side
+    sorted.sort((a, b) => {
       const aValue = a[sortField];
       const bValue = b[sortField];
       
@@ -62,8 +77,8 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
       return sortDirection === "asc" ? comparison : -comparison;
     });
 
-    return filtered;
-  }, [contacts, searchTerm, sortField, sortDirection, filterGender, filterYear, filterInterested]);
+    return sorted;
+  }, [contactsToDisplay, sortField, sortDirection]);
 
   const handleSort = (field: keyof Contact) => {
     if (sortField === field) {
@@ -75,6 +90,10 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
   };
 
   const startEditing = (contact: Contact, field: keyof Contact) => {
+    // Notes are handled by NotesDisplay component, not inline editing
+    if (field === "notes") {
+      return;
+    }
     setEditingContact({ id: contact.id, field });
     setEditValue(String(contact[field] || ""));
   };
@@ -84,7 +103,11 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
 
     let value: any = editValue;
     
-    // Conversion des valeurs booléennes
+    // Conversion des valeurs
+    if (editingContact.field === "followUpStatusNumber") {
+      value = parseInt(editValue);
+    }
+    
     if (editingContact.field === "isInterested") {
       value = editValue === "true";
     }
@@ -157,8 +180,10 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
             className="w-full px-2 py-1 border border-blue-500 rounded focus:outline-none"
             autoFocus
           >
-            {yearOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+            {Object.entries(yearOptions).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
             ))}
           </select>
         );
@@ -177,8 +202,32 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
             className="w-full px-2 py-1 border border-blue-500 rounded focus:outline-none"
             autoFocus
           >
-            {genderOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+            {Object.entries(genderOptions).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        );
+      }
+
+      if (field === "followUpStatusNumber") {
+        return (
+          <select
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={saveEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveEdit();
+              if (e.key === "Escape") cancelEdit();
+            }}
+            className="w-full px-2 py-1 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoFocus
+          >
+            {followUpStatuses.map(status => (
+              <option key={status.number} value={status.number}>
+                {status.description}
+              </option>
             ))}
           </select>
         );
@@ -203,7 +252,7 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
         );
       }
 
-      // Champ texte normal
+      // For non-notes fields, use regular input
       return (
         <input
           type="text"
@@ -222,18 +271,11 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
 
     // Affichage normal
     const displayValue = (() => {
-      if (field === "isInterested") {
-        return value ? "Yes" : "No";
-      }
-      if (field === "year") {
-        const option = yearOptions.find(opt => opt.value === value);
-        return option ? option.label : value;
-      }
-      if (field === "gender") {
-        const option = genderOptions.find(opt => opt.value === value);
-        return option ? option.label : value;
-      }
-      return value || "";
+      if (field === "followUpStatusNumber") return getStatusDescription(followUpStatuses, value as number);
+      if (field === "isInterested") return value ? "Yes" : "No";
+      if (field === "year") return yearOptions[value as YearEnum] || value;
+      if (field === "gender") return genderOptions[value as GenderEnum] || value;
+      return value || "-";
     })();
 
     return (
@@ -250,20 +292,48 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
     <div className="space-y-4">
       {/* Barre de recherche et filtres */}
       <div className="bg-gray-50 p-4 rounded-lg">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <h3 className="text-sm font-medium text-gray-700">Filters</h3>
+            {isFilterLoading && (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span className="text-xs text-gray-500">Updating...</span>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Recherche */}
           <div className="lg:col-span-2">
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              {isFilterLoading ? (
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              )}
               <input
                 type="text"
                 placeholder="Search by name, email, phone, campus..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchQuery}
+                onChange={(e) => onUpdateFilters?.({ ...filters, search: e.target.value })}
                 className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => onUpdateFilters?.({ ...filters, search: "" })}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 hover:text-gray-600"
+                >
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
 
@@ -271,12 +341,12 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
           <div>
             <select
               value={filterGender}
-              onChange={(e) => setFilterGender(e.target.value as GenderEnum | "all")}
+              onChange={(e) => onUpdateFilters?.({ ...filters, gender: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All genders</option>
-              {genderOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+              {Object.entries(genderOptions).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
               ))}
             </select>
           </div>
@@ -285,12 +355,12 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
           <div>
             <select
               value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value as YearEnum | "all")}
+              onChange={(e) => onUpdateFilters?.({ ...filters, year: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All years</option>
-              {yearOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+              {Object.entries(yearOptions).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
               ))}
             </select>
           </div>
@@ -299,12 +369,28 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
           <div>
             <select
               value={filterInterested}
-              onChange={(e) => setFilterInterested(e.target.value as "all" | "true" | "false")}
+              onChange={(e) => onUpdateFilters?.({ ...filters, isInterested: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All</option>
+              <option value="all">Interest Level</option>
               <option value="true">Interested</option>
               <option value="false">Not interested</option>
+            </select>
+          </div>
+
+          {/* Filtre par statut de suivi */}
+          <div>
+            <select
+              value={filterFollowUpStatus}
+              onChange={(e) => onUpdateFilters?.({ ...filters, followUpStatusNumber: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All statuses</option>
+              {followUpStatuses.map(status => (
+                <option key={status.number} value={status.number.toString()}>
+                  {status.description}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -312,9 +398,20 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
         {/* Statistiques rapides */}
         <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600">
           <span>Total: <strong>{filteredAndSortedContacts.length}</strong></span>
-          <span>Interested: <strong>{filteredAndSortedContacts.filter(c => c.isInterested).length}</strong></span>
+          {searchQuery && (
+            <span className="text-blue-600">
+              🔍 Search results for: "<strong>{searchQuery}</strong>"
+            </span>
+          )}
           <span>Male: <strong>{filteredAndSortedContacts.filter(c => c.gender === 'male').length}</strong></span>
           <span>Female: <strong>{filteredAndSortedContacts.filter(c => c.gender === 'female').length}</strong></span>
+          <span>Interested: <strong>{filteredAndSortedContacts.filter(c => c.isInterested === true).length}</strong></span>
+          <span>Not Interested: <strong>{filteredAndSortedContacts.filter(c => c.isInterested === false).length}</strong></span>
+          {followUpStatuses.map(status => (
+            <span key={status.number}>
+              {status.description}: <strong>{filteredAndSortedContacts.filter(c => c.followUpStatusNumber === status.number).length}</strong>
+            </span>
+          ))}
         </div>
       </div>
 
@@ -352,6 +449,12 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
                   <SortButton field="isInterested">Interested</SortButton>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <SortButton field="followUpStatusNumber">Follow-up Status</SortButton>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Notes
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -359,14 +462,14 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAndSortedContacts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center">
                       <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 919.288 0M15 7a3 3 0 11-6 0 3 3 0 616 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM9 9a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                       <p>No contacts found</p>
                       <p className="text-sm text-gray-400 mt-1">
-                        {searchTerm || filterGender !== "all" || filterYear !== "all" || filterInterested !== "all" 
+                        {searchQuery || filterGender !== "all" || filterYear !== "all" || filterFollowUpStatus !== "all" 
                           ? "Try adjusting your search filters"
                           : "Start by adding some contacts"
                         }
@@ -402,9 +505,21 @@ export function ContactsTable({ contacts, onUpdateContact, onDeleteContact }: Co
                       {renderEditableCell(contact, "gender", contact.gender)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {renderEditableCell(contact, "isInterested", contact.isInterested)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
-                        {renderEditableCell(contact, "isInterested", contact.isInterested)}
+                        {renderEditableCell(contact, "followUpStatusNumber", contact.followUpStatusNumber)}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                      <NotesDisplay 
+                        notes={contact.notes} 
+                        contactName={`${contact.firstName} ${contact.lastName}`}
+                        maxPreviewLength={15}
+                        editable={true}
+                        onNotesUpdate={(newNotes) => onUpdateContact(contact.id, { notes: newNotes })}
+                      />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button

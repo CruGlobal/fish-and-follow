@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { apiService, type ContactField } from '~/lib/api';
+import { apiService } from '~/lib/api';
 import {
   Select,
   SelectContent,
@@ -16,6 +16,12 @@ interface TemplateParameterMapperProps {
 interface TemplateParameter {
   number: number;
   placeholder: string;
+}
+
+interface ContactField {
+  key: string;
+  label: string;
+  type: string;
 }
 
 function TemplateParameterMapper({ templateText, onParameterMappingChange }: TemplateParameterMapperProps) {
