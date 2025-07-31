@@ -26,6 +26,7 @@ RUN pnpm install --prod
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
+COPY ./fish-and-follow-server /app/
 COPY --from=front-end /app/build/client /app/public
 COPY --from=back-end /app/dist /app/dist
 # Define volumes used by ECS to share public html and extra nginx config with nginx container
