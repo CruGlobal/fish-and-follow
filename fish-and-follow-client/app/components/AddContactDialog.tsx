@@ -11,25 +11,29 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import type { NewContactData, YearEnum, GenderEnum } from "../lib/contactStore";
+import { type YearEnum, type GenderEnum, type ContactFormData, yearOptions, genderOptions } from "~/types/contact";
+import { useFollowUpStatuses } from "~/hooks/useFollowUpStatuses";
 
 interface AddContactDialogProps {
-  onAddContact: (contactData: NewContactData) => void;
+  onAddContact: (contactData: ContactFormData) => void;
   trigger: React.ReactNode;
 }
 
 export function AddContactDialog({ onAddContact, trigger }: AddContactDialogProps) {
+  const { statuses: followUpStatuses } = useFollowUpStatuses();
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState<NewContactData>({
+  const [formData, setFormData] = useState<ContactFormData>({
     firstName: "",
     lastName: "",
     phoneNumber: "",
     email: "",
     campus: "",
     major: "",
-    year: "1",
-    isInterested: true,
-    gender: "prefer_not_to_say",
+    year: "1st_year",
+    gender: "male",
+    isInterested: true, // Default to interested
+    followUpStatusNumber: 1, // Default follow-up status
+    notes: "", // Optional notes field
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,9 +46,11 @@ export function AddContactDialog({ onAddContact, trigger }: AddContactDialogProp
       email: "",
       campus: "",
       major: "",
-      year: "1",
+      year: "1st_year",
+      gender: "male",
       isInterested: true,
-      gender: "prefer_not_to_say",
+      followUpStatusNumber: followUpStatuses.length > 0 ? followUpStatuses[0].number : 1,
+      notes: "",
     });
     setErrors({});
   };
@@ -231,13 +237,11 @@ export function AddContactDialog({ onAddContact, trigger }: AddContactDialogProp
                   onChange={(e) => setFormData(prev => ({ ...prev, year: e.target.value as YearEnum }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="1">1st Year</option>
-                  <option value="2">2nd Year</option>
-                  <option value="3">3rd Year</option>
-                  <option value="4">4th Year</option>
-                  <option value="5">5th Year</option>
-                  <option value="Master">Master</option>
-                  <option value="PhD">PhD</option>
+                  {Object.entries(yearOptions).map(([year, label]) => (
+                    <option key={year} value={year}>
+                      {label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -249,39 +253,60 @@ export function AddContactDialog({ onAddContact, trigger }: AddContactDialogProp
                   onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value as GenderEnum }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                  <option value="prefer_not_to_say">Prefer not to say</option>
+                  {Object.entries(genderOptions).map(([gender, label]) => (
+                    <option key={gender} value={gender}>
+                      {label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
           </div>
 
-          {/* Interest */}
+          {/* Interest Level */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm font-medium text-gray-900 mb-4">Interest Level</h3>
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="interest"
-                  checked={formData.isInterested === true}
-                  onChange={() => setFormData(prev => ({ ...prev, isInterested: true }))}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                />
-                <span className="ml-2 text-sm text-gray-900">Interested</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="interest"
-                  checked={formData.isInterested === false}
-                  onChange={() => setFormData(prev => ({ ...prev, isInterested: false }))}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                />
-                <span className="ml-2 text-sm text-gray-900">Not Interested</span>
-              </label>
+            <select
+              value={formData.isInterested ? "true" : "false"}
+              onChange={(e) => setFormData(prev => ({ ...prev, isInterested: e.target.value === "true" }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="true">Interested</option>
+              <option value="false">Not Interested</option>
+            </select>
+          </div>
+
+          {/* Follow-up Status */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Follow-up Status</h3>
+            <select
+              value={formData.followUpStatusNumber || ""}
+              onChange={(e) => setFormData(prev => ({ ...prev, followUpStatusNumber: parseInt(e.target.value) }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {followUpStatuses.map(status => (
+                <option key={status.number} value={status.number}>
+                  {status.description}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Notes</h3>
+            <div>
+              <Label htmlFor="notes">
+                Additional Notes (Optional)
+              </Label>
+              <textarea
+                id="notes"
+                value={formData.notes || ""}
+                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                rows={3}
+                placeholder="Any additional information about this contact..."
+              />
             </div>
           </div>
 

@@ -1,52 +1,35 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
+import { useAuth } from '~/hooks/useAuth';
+import { HomeIcon, Contact, Book, Settings, MessageCircle, LogOut, LogIn, QrCode, Menu, X } from 'lucide-react'
 
 export default function ModernNavigation() {
-  const [activeTab, setActiveTab] = useState("home");
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.pathname.split('/')[1] || 'home');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isAuthenticated, user, logout: onLogout } = useAuth();
 
-  const navItems = [
-    {
-      id: "home",
-      label: "Home",
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-      href: "/",
-    },
-    {
-      id: "contact-form",
-      label: "Contact",
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
-      href: "/contacts",
-    },
-    {
-      id: "resources",
-      label: "Resources",
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      ),
-      href: "/resources",
-    },
-    {
-      id: "admin",
-      label: "Settings",
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      href: "/admin",
-    },
+  const publicLinks = [
+    { id: "home", href: "/", label: "Home", icon: <HomeIcon className="w-5 h-5" /> },
+    { id: "contact-form", href: "/contact-form", label: "Contact Form", icon: <Contact className="w-5 h-5" /> },
+    { id: "resources", href: "/resources", label: "Resources", icon: <Book className="w-5 h-5" /> },
   ];
+
+  const authenticatedLinks = [
+    { id: "contacts", href: "/contacts", label: "Contacts", icon: <Contact className="w-5 h-5" /> },
+    { id: "qe", href: "/qr", label: "QR Code", icon: <QrCode className="w-5 h-5" /> },
+    ...(user?.role === "admin" ? [{ id: "admin", href: "/admin", label: "Admin", icon: <Settings className="w-5 h-5" /> }] : []),
+    { id: "bulkmessaging", href: "/bulkmessaging", label: "Bulk Messaging", icon: <MessageCircle className="w-5 h-5" /> },
+  ];
+
+  const getVisibleLinks = () => {
+    if (isAuthenticated) {
+      return [...publicLinks, ...authenticatedLinks];
+    }
+    return publicLinks;
+  };
+  const visibleLinks = getVisibleLinks();
+
 
   return (
     <>
@@ -65,7 +48,7 @@ export default function ModernNavigation() {
 
           {/* Navigation */}
           <nav className="flex-1 px-4 space-y-2">
-            {navItems.map((item) => (
+            {visibleLinks.map((item) => (
               <Link
                 key={item.id}
                 to={item.href}
@@ -76,15 +59,35 @@ export default function ModernNavigation() {
                     : "text-gray-700 hover:bg-white/50 hover:text-[#00A9FF] hover:scale-102 hover:shadow-md"
                 }`}
               >
-                <div className={`mr-3 transition-all duration-300 ${
+                <div className={`mr-3 transition-[scale] duration-300 ${
                   activeTab === item.id ? "scale-110" : "group-hover:scale-105"
                 }`}>{item.icon}</div>
-                <span className={`transition-all duration-300 ${
+                <span className={`transition-[scale] duration-300 ${
                   activeTab === item.id ? "font-semibold" : ""
                 }`}>{item.label}</span>
               </Link>
             ))}
           </nav>
+            {/* Login/Logout Button */}
+            <div className="flex justify-center px-6 mt-6">
+            {isAuthenticated ? (
+              <button
+                onClick={onLogout}
+                className="group w-full flex items-center justify-center px-4 py-3 text-sm font-medium text-gray-700 bg-white/60 hover:bg-white/80 rounded-2xl transition-all duration-300 shadow-md hover:shadow-lg border border-white/30 hover:border-red-200 hover:text-red-600 transform hover:scale-102 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 mr-2 transition-colors duration-300 group-hover:text-red-500" />
+                Logout
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="group w-full flex items-center justify-center px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-[#00A9FF] to-[#89CFF3] hover:from-[#89CFF3] hover:to-[#00A9FF] rounded-2xl transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-102"
+              >
+                <LogIn className="w-4 h-4 mr-2 transition-transform duration-300 group-hover:scale-110" />
+                Login
+              </Link>
+            )}
+            </div>
 
           {/* Welcome Message */}
           <div className="px-6 mt-8">
@@ -105,28 +108,83 @@ export default function ModernNavigation() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="lg:hidden fixed bottom-6 left-6 right-6 bg-[#FCF3D9]/95 backdrop-blur-xl border border-white/20 shadow-2xl z-50 rounded-3xl">
-        <div className="flex items-center justify-around h-14 px-2">
-          {navItems.map((item) => (
-            <Link
-              key={item.id}
-              to={item.href}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center justify-center w-12 h-11 rounded-xl transition-all duration-300 transform ${
-                activeTab === item.id
-                  ? "bg-gradient-to-br from-[#00A9FF] to-[#89CFF3] text-white shadow-lg scale-110 -translate-y-1"
-                  : "text-gray-600 hover:text-[#00A9FF] hover:bg-white/40 hover:scale-105 hover:-translate-y-0.5"
-              }`}
-            >
-              <div className={`w-5 h-5 mb-0.5 transition-all duration-300 ${
-                activeTab === item.id ? "scale-110" : ""
-              }`}>{item.icon}</div>
-              <span className={`text-xs font-medium transition-all duration-300 ${
-                activeTab === item.id ? "font-semibold" : ""
-              }`}>{item.label}</span>
-            </Link>
-          ))}
+      <div className="lg:hidden">
+        {/* Expandable Menu Content */}
+        <div className={`fixed bottom-28 left-6 right-6 bg-[#FCF3D9]/95 backdrop-blur-xl border border-white/20 shadow-2xl z-40 rounded-3xl transition-all duration-300 transform ${
+          isMobileMenuOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}>
+          <div className="p-4 grid grid-cols-2 gap-3">
+            {visibleLinks.map((item) => (
+              <Link
+                key={item.id}
+                to={item.href}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`flex items-center p-3 rounded-2xl transition-all duration-300 transform ${
+                  activeTab === item.id
+                    ? "bg-gradient-to-r from-[#00A9FF] to-[#89CFF3] text-white shadow-lg"
+                    : "text-gray-700 bg-white/60 hover:bg-white/80 hover:text-[#00A9FF]"
+                }`}
+              >
+                <div className="mr-3">{item.icon}</div>
+                <span className="text-sm font-medium">{item.label}</span>
+              </Link>
+            ))}
+            
+            {/* Login/Logout Button in Mobile Menu */}
+            <div className="col-span-2 pt-2 border-t border-white/20">
+              {isAuthenticated ? (
+                <button
+                  onClick={() => {
+                    onLogout();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center p-3 text-sm font-medium text-gray-700 bg-white/60 hover:bg-white/80 rounded-2xl transition-all duration-300 shadow-md hover:shadow-lg border border-white/30 hover:border-red-200 hover:text-red-600"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center p-3 text-sm font-medium text-white bg-gradient-to-r from-[#00A9FF] to-[#89CFF3] hover:from-[#89CFF3] hover:to-[#00A9FF] rounded-2xl transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Login
+                </Link>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Mobile Menu Toggle Button */}
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className={`w-14 h-14 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 ${
+              isMobileMenuOpen
+                ? "bg-gradient-to-r from-gray-600 to-gray-700 text-white rotate-180"
+                : "bg-gradient-to-r from-[#00A9FF] to-[#89CFF3] text-white"
+            }`}
+          >
+            {isMobileMenuOpen ? (
+              <X className="w-6 h-6 mx-auto" />
+            ) : (
+              <Menu className="w-6 h-6 mx-auto" />
+            )}
+          </button>
+        </div>
+
+        {/* Backdrop overlay */}
+        {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
       </div>
     </>
   );

@@ -1,114 +1,7 @@
-// API service for handling HTTP requests
-
-interface ContactFormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  company?: string;
-  message?: string;
-}
-
-interface Contact extends ContactFormData {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: "admin" | "staff"; 
-  status: "active" | "inactive";
-  lastLogin?: string;
-  createdAt: string;
-}
-interface ContactSummary {
-  id: string;
-  firstName: string;
-  lastName: string;
-}
-
-interface ContactSearchResponse {
-  success: boolean;
-  contacts: ContactSummary[];
-  query: string | null;
-  fuzzySearch: boolean;
-  threshold: number;
-  total: number;
-  totalContacts: number;
-  timestamp: string;
-}
-
-interface TemplateComponent {
-  type: "HEADER" | "BODY" | "FOOTER" | "BUTTONS";
-  text?: string;
-  format?: "TEXT" | "MEDIA";
-  buttons?: Array<{
-    type?: string;
-    text?: string;
-    url?: string;
-    phone_number?: string;
-  }>;
-  example?: unknown;
-}
-
-interface TemplateItem {
-  id: string;
-  name: string;
-  language: string;
-  status: string;
-  category: string;
-  components: TemplateComponent[];
-}
-
-interface FacebookConfig {
-  businessId: string;
-  assetId: string;
-}
-
-interface Template {
-  success: boolean
-  templates: TemplateItem[];
-  timestamp: string;
-  total: number;
-  facebookConfig: FacebookConfig;
-}
-
-interface BulkTemplateMessageRequest {
-  contactIds: string[];
-  template?: string;
-  language?: string;
-  params?: Record<string, string>;
-  fields?: string[];
-  parameterMapping?: string[]; // Ordered list of contact field names for template parameters
-}
-
-interface BulkTemplateMessageResponse {
-  success: boolean;
-  data: {
-    totalRequested: number;
-    totalFound: number;
-    totalSent: number;
-    totalFailed: number;
-    results: any[];
-    errors: any[];
-  };
-  timestamp: string;
-}
-
-interface ContactField {
-  key: string;
-  label: string;
-  type: string;
-}
-
-interface ContactFieldsResponse {
-  success: boolean;
-  fields: ContactField[];
-  timestamp: string;
-}
+import type { Contact, ContactBrief, ContactFormData, ContactField, ContactFieldsResponse, ContactSearchResponse } from "~/types/contact";
+import type { UserRole, User, NewUserData } from "~/types/user";
+import type { Template, TemplateItem, TemplateComponent, BulkTemplateMessageRequest, BulkTemplateMessageResponse } from "~/types/bulkMessaging";
+import type { FollowUpStatus, NewFollowUpStatusData } from "~/types/followUpStatus";
 
 class ApiService {
   private async request<T>(
@@ -147,7 +40,7 @@ class ApiService {
     });
   }
 
-  async getContacts(search?: string, fields?: string[]): Promise<ContactSummary[]> {
+  async getContacts(search?: string, fields?: string[]): Promise<ContactBrief[]> {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     if (fields && fields.length > 0) params.append('fields', fields.join(','));
@@ -168,7 +61,17 @@ class ApiService {
     }
   }
 
-  async getFullContacts(search?: string): Promise<Contact[]> {
+  async getFullContacts(
+    search?: string, 
+    filters?: {
+      year?: string;
+      gender?: string;
+      campus?: string;
+      major?: string;
+      isInterested?: string;
+      followUpStatusNumber?: string;
+    }
+  ): Promise<Contact[]> {
     const allFields = [
       'id', 'firstName', 'lastName', 'phoneNumber', 'email', 
       'campus', 'major', 'year', 'isInterested', 'gender', 
@@ -177,6 +80,17 @@ class ApiService {
     
     const params = new URLSearchParams();
     if (search) params.append('search', search);
+    
+    // Add filter parameters
+    if (filters) {
+      if (filters.year && filters.year !== 'all') params.append('year', filters.year);
+      if (filters.gender && filters.gender !== 'all') params.append('gender', filters.gender);
+      if (filters.campus && filters.campus !== 'all') params.append('campus', filters.campus);
+      if (filters.major && filters.major !== 'all') params.append('major', filters.major);
+      if (filters.isInterested && filters.isInterested !== 'all') params.append('isInterested', filters.isInterested);
+      if (filters.followUpStatusNumber && filters.followUpStatusNumber !== 'all') params.append('followUpStatusNumber', filters.followUpStatusNumber);
+    }
+    
     params.append('fields', allFields.join(','));
     
     const queryString = params.toString();
@@ -195,7 +109,7 @@ class ApiService {
     }
   }
 
-  async searchContacts(query: string): Promise<ContactSummary[]> {
+  async searchContacts(query: string): Promise<ContactBrief[]> {
     try {
       return await this.getContacts(query);
     } catch (error) {
@@ -225,8 +139,26 @@ class ApiService {
   async getUsers(): Promise<User[]> {
     return this.request<User[]>("/users");
   }
+    async searchUsers(
+    search?: string,
+    filters?: {
+      role?: string;
+      status?: string;
+      limit?: string;
+    }
+  ): Promise<{ success: boolean; users: User[]; query: string | null; total: number; timestamp: string }> {
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+    if (filters?.role) params.append("role", filters.role);
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.limit) params.append("limit", filters.limit);
 
-  async createUser(data: { name: string; email: string; role: "admin" | "staff" }): Promise<User> {
+    return this.request<{ success: boolean; users: User[]; query: string | null; total: number; timestamp: string }>(
+      `/users/search?${params.toString()}`
+    );
+  }
+
+  async createUser(data: NewUserData): Promise<User> {
     return this.request<User>("/users", {
       method: "POST",
       body: JSON.stringify(data),
@@ -246,47 +178,6 @@ class ApiService {
     });
   }
 
-  // Auth endpoints
-  async getAuthStatus(): Promise<{ authenticated: boolean; user: any | null }> {
-    // Call the backend's auth status endpoint directly (not through /api since it's not protected)
-    const url = "http://localhost:3000/auth/status";
-    const response = await fetch(url, {
-      credentials: 'include', // Include cookies
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  }
-
-  // Redirect to backend's OAuth login
-  redirectToLogin(): void {
-    window.location.href = "http://localhost:3000/signin";
-  }
-
-  // Call backend's logout endpoint
-  async logout(): Promise<void> {
-    const url = "http://localhost:3000/signout";
-    const response = await fetch(url, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  }
-
   // Template endpoints
   async getTemplates(): Promise<Template> {
     return this.request<Template>("/whatsapp/templates");
@@ -304,19 +195,50 @@ class ApiService {
     const response = await this.request<ContactFieldsResponse>("/contacts/fields");
     return response.fields;
   }
+
+  async getContactStats(): Promise<{
+    total: number;
+    interested: number;
+    notInterested: number;
+    maleCount: number;
+    femaleCount: number;
+  }> {
+    const response = await this.request<{
+      success: boolean;
+      stats: {
+        total: number;
+        interested: number;
+        notInterested: number;
+        maleCount: number;
+        femaleCount: number;
+      };
+      timestamp: string;
+    }>("/contacts/stats");
+    return response.stats;
+  }
+
+  // Follow-up status endpoints
+  async getFollowUpStatuses(): Promise<FollowUpStatus[]> {
+    return this.request<FollowUpStatus[]>("/follow-up-status");
+  }
+
+  async getFollowUpStatus(number: number): Promise<FollowUpStatus> {
+    return this.request<FollowUpStatus>(`/follow-up-status/${number}`);
+  }
+
+  async createFollowUpStatus(data: NewFollowUpStatusData): Promise<FollowUpStatus> {
+    return this.request<FollowUpStatus>("/follow-up-status", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateFollowUpStatus(number: number, description: string): Promise<FollowUpStatus> {
+    return this.request<FollowUpStatus>(`/follow-up-status/${number}`, {
+      method: "PUT",
+      body: JSON.stringify({ description }),
+    });
+  }
 }
 
 export const apiService = new ApiService();
-export type { 
-  Contact, 
-  ContactSummary, 
-  User, 
-  ContactFormData, 
-  Template, 
-  TemplateItem, 
-  TemplateComponent,
-  BulkTemplateMessageRequest,
-  BulkTemplateMessageResponse,
-  ContactField,
-  ContactFieldsResponse 
-};

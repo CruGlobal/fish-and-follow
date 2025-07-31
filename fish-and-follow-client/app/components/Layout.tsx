@@ -3,7 +3,7 @@ import ModernNavigation from "~/components/ModernNavigation";
 
 export default function Layout() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#CDF5FD] to-white">
+    <div className="min-h-screen app-bg">
       <ModernNavigation />
       
       {/* Main Content */}

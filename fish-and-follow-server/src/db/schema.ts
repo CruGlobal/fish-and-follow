@@ -11,16 +11,20 @@ import {
 export const RoleEnum = pgEnum('role_enum', ['admin', 'staff']);
 
 export const YearEnum = pgEnum('year_enum', [
-  '1',
-  '2', 
-  '3',
-  '4',
-  '5',
-  'Master',
-  'PhD'
+  '1st_year',
+  '2nd_year',
+  '3rd_year',
+  '4th_year',
+  '5th_year',
+  '6th_year',
+  '7th_year',
+  '8th_year',
+  '9th_year',
+  '10th_year',
+  '11th_year',
 ]);
 
-export const GenderEnum = pgEnum('gender_enum', ['male', 'female', 'other', 'prefer_not_to_say']);
+export const GenderEnum = pgEnum('gender_enum', ['male', 'female']);
 
 export const user = pgTable('user', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -50,6 +54,7 @@ export const contact = pgTable('contact', {
   gender: GenderEnum('gender').notNull(),
   followUpStatusNumber: integer('follow_up_status').references(() => followUpStatus.number),
   orgId: uuid('org_id').notNull().references(() => organization.id),
+  notes: varchar('notes', { length: 2500 }).default('')
 });
 
 export const followUpStatus = pgTable('follow_up_status', {

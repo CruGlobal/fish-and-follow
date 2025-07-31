@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { useEffect, useState } from 'react'
 import { apiService } from '~/lib/api'
-import type { TemplateItem, TemplateComponent, BulkTemplateMessageRequest, BulkTemplateMessageResponse } from '~/lib/api'
+import type { TemplateItem, BulkTemplateMessageRequest, BulkTemplateMessageResponse } from '~/types/bulkMessaging'
 import TemplateParameterMapper from './TemplateParameterMapper'
 
 import {
@@ -45,7 +44,6 @@ function TemplateSelector({ selectedContacts = [] }: TemplateSelectorProps) {
       try {
         setLoading(true)
         const response = await apiService.getTemplates()
-        console.log("API response:", response)
         // Handle the nested structure: response.templates
         const templatesData = response?.templates || []
         setTemplates(templatesData)
@@ -65,7 +63,6 @@ function TemplateSelector({ selectedContacts = [] }: TemplateSelectorProps) {
   }, [])
 
   const handleTemplateSelect = (templateName: string) => {
-    console.log("Selected template:", templateName)
     const template = templates.find(t => t.name === templateName)
     setSelectedTemplate(template || null)
     

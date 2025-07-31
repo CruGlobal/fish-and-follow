@@ -11,91 +11,40 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import type { Contact, NewContactData } from "../lib/contactStore";
+import type { NewContactData } from "../types/contact";
+import { useFollowUpStatuses } from "../hooks/useFollowUpStatuses";
+import { apiService } from "../lib/api";
+import { NotesDisplay } from "./NotesDisplay";
 
 interface ImportContactsDialogProps {
-  onImportContacts: (contacts: NewContactData[]) => void;
+  onImportContacts?: (contacts: NewContactData[]) => void;
+  onImportComplete?: () => void;
   trigger: React.ReactNode;
 }
 
-export function ImportContactsDialog({ onImportContacts, trigger }: ImportContactsDialogProps) {
+export function ImportContactsDialog({ onImportContacts, onImportComplete, trigger }: ImportContactsDialogProps) {
+  const { statuses: followUpStatuses } = useFollowUpStatuses();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [previewData, setPreviewData] = useState<NewContactData[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [importResults, setImportResults] = useState<{
+    successful: number;
+    failed: number;
+    errors: Array<{ contact: NewContactData; error: string; index: number }>;
+  }>({ successful: 0, failed: 0, errors: [] });
   
-  // États pour les différentes méthodes d'import
-  const [importMethod, setImportMethod] = useState<'url' | 'csv' | 'manual'>('url');
-  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
+  // Only CSV import method
   const [csvFile, setCsvFile] = useState<File | null>(null);
-
-  const handleGoogleSheetImport = async () => {
-    if (!googleSheetUrl.trim()) {
-      setError("Veuillez saisir l'URL de votre Google Sheet");
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-
-    try {
-      // Simulation de l'import depuis Google Sheets
-      // En réalité, il faudrait utiliser l'API Google Sheets
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Example data simulating a successful import
-      const mockImportedData: NewContactData[] = [
-        {
-          firstName: "Alice",
-          lastName: "Martin",
-          phoneNumber: "+33 6 12 34 56 78",
-          email: "alice.martin@example.com",
-          campus: "Paris",
-          major: "Informatique",
-          year: "3",
-          isInterested: true,
-          gender: "female"
-        },
-        {
-          firstName: "Bob",
-          lastName: "Dupont",
-          phoneNumber: "+33 6 98 76 54 32",
-          email: "bob.dupont@example.com",
-          campus: "Lyon",
-          major: "Commerce",
-          year: "Master",
-          isInterested: false,
-          gender: "male"
-        },
-        {
-          firstName: "Claire",
-          lastName: "Rousseau",
-          phoneNumber: "+33 6 11 22 33 44",
-          email: "claire.rousseau@example.com",
-          campus: "Marseille",
-          major: "Design",
-          year: "2",
-          isInterested: true,
-          gender: "female"
-        }
-      ];
-
-      setPreviewData(mockImportedData);
-      setShowPreview(true);
-    } catch (err) {
-      setError("Erreur lors de l'import depuis Google Sheets. Vérifiez l'URL et les permissions.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleCsvImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     if (!file.name.endsWith('.csv')) {
-      setError("Veuillez sélectionner un fichier CSV");
+      setError("Please select a CSV file");
       return;
     }
 
@@ -106,14 +55,15 @@ export function ImportContactsDialog({ onImportContacts, trigger }: ImportContac
       try {
         const csvText = e.target?.result as string;
         const lines = csvText.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
         
-        // Validation des en-têtes requis
-        const requiredHeaders = ['firstName', 'lastName', 'phoneNumber', 'campus', 'major', 'year', 'gender'];
+        // Validate required headers (based on export format)
+        const requiredHeaders = ['First Name', 'Last Name', 'Email', 'Phone', 'Campus', 'Major', 'Year', 'Gender', 'Interested', 'Follow-up Status Description'];
+        const optionalHeaders = ['Notes'];
         const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
         
         if (missingHeaders.length > 0) {
-          setError(`En-têtes manquants: ${missingHeaders.join(', ')}`);
+          setError(`Missing headers: ${missingHeaders.join(', ')}`);
           return;
         }
 
@@ -123,24 +73,34 @@ export function ImportContactsDialog({ onImportContacts, trigger }: ImportContac
           const line = lines[i].trim();
           if (!line) continue;
           
-          const values = line.split(',').map(v => v.trim());
+          // Handle CSV parsing with quoted values
+          const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
           const contact: any = {};
           
           headers.forEach((header, index) => {
             contact[header] = values[index] || '';
           });
 
-          // Validation et conversion des types
+          // Map to follow-up status number from description (default to 1 if not found)
+          const followUpStatusDesc = contact['Follow-up Status Description'] || '';
+          const matchingStatus = followUpStatuses.find(s => 
+            s.description.toLowerCase() === followUpStatusDesc.toLowerCase()
+          );
+          const followUpStatusNumber = matchingStatus ? matchingStatus.number : 1;
+
+          // Convert and validate data
           contacts.push({
-            firstName: contact.firstName,
-            lastName: contact.lastName,
-            phoneNumber: contact.phoneNumber,
-            email: contact.email || '',
-            campus: contact.campus,
-            major: contact.major,
-            year: contact.year as any,
-            isInterested: contact.isInterested === 'true' || contact.isInterested === '1',
-            gender: contact.gender as any
+            firstName: contact['First Name'],
+            lastName: contact['Last Name'],
+            phoneNumber: contact['Phone'],
+            email: contact['Email'] || '',
+            campus: contact['Campus'],
+            major: contact['Major'],
+            year: contact['Year'] as any,
+            isInterested: contact['Interested'] ? contact['Interested'].toLowerCase() === 'yes' : true,
+            followUpStatusNumber: followUpStatusNumber,
+            gender: contact['Gender'] as any,
+            notes: contact['Notes'] || ''
           });
         }
 
@@ -148,164 +108,153 @@ export function ImportContactsDialog({ onImportContacts, trigger }: ImportContac
         setShowPreview(true);
         setError("");
       } catch (err) {
-        setError("Erreur lors de la lecture du fichier CSV");
+        setError("Error reading the CSV file");
       }
     };
     
     reader.readAsText(file);
   };
 
-  const confirmImport = () => {
-    onImportContacts(previewData);
-    setOpen(false);
-    setShowPreview(false);
-    setPreviewData([]);
-    setGoogleSheetUrl("");
-    setCsvFile(null);
-    setError("");
+  const confirmImport = async () => {
+    if (previewData.length === 0) return;
+
+    try {
+      setIsLoading(true);
+      
+      // Use the new bulk import API
+      const results = await apiService.importContacts(previewData);
+      
+      setImportResults(results);
+      setShowPreview(false);
+      setShowResults(true);
+      
+      // Call the completion callback
+      onImportComplete?.();
+      
+    } catch (err) {
+      setError("Failed to import contacts. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const resetDialog = () => {
     setShowPreview(false);
+    setShowResults(false);
     setPreviewData([]);
+    setImportResults({ successful: 0, failed: 0, errors: [] });
     setError("");
-    setGoogleSheetUrl("");
     setCsvFile(null);
   };
 
+  const closeDialog = () => {
+    if (isLoading) return; // Prevent closing during import
+    setOpen(false);
+    resetDialog();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={isLoading ? undefined : setOpen}>
       <DialogTrigger asChild>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col" onPointerDownOutside={isLoading ? (e) => e.preventDefault() : undefined}>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center">
             <svg className="w-5 h-5 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
               <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
             </svg>
-            Importer des Contacts
+            {isLoading ? 'Importing Contacts...' : showResults ? 'Import Complete' : 'Import Contacts'}
           </DialogTitle>
           <DialogDescription>
-            Importez vos contacts depuis Google Sheets ou un fichier CSV
+            {isLoading 
+              ? 'Please wait while we import your contacts...' 
+              : showResults 
+                ? 'Import process completed'
+                : 'Import your contacts from a CSV file'
+            }
           </DialogDescription>
         </DialogHeader>
 
-        {!showPreview ? (
-          <div className="space-y-6">
-            {/* Sélection de la méthode d'import */}
-            <div>
-              <Label className="text-base font-medium">Méthode d'import</Label>
-              <div className="mt-2 space-y-2">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="url"
-                    checked={importMethod === 'url'}
-                    onChange={(e) => setImportMethod(e.target.value as 'url')}
-                    className="mr-2"
-                  />
-                  <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                  </svg>
-                  Google Sheets (URL)
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="csv"
-                    checked={importMethod === 'csv'}
-                    onChange={(e) => setImportMethod(e.target.value as 'csv')}
-                    className="mr-2"
-                  />
-                  <svg className="w-4 h-4 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 011 1v1a1 1 0 01-1 1H4a1 1 0 01-1-1v-1zM3 7a1 1 0 011-1h12a1 1 0 011 1v1a1 1 0 01-1 1H4a1 1 0 01-1-1V7zM3 12a1 1 0 011-1h12a1 1 0 011 1v1a1 1 0 01-1 1H4a1 1 0 01-1-1v-1z" clipRule="evenodd" />
-                  </svg>
-                  Fichier CSV
-                </label>
-              </div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-4">
+          {isLoading ? (
+            /* Loading State */
+            <div className="flex flex-col items-center justify-center h-full space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+              <p className="text-lg font-medium">Importing contacts...</p>
+              <p className="text-sm text-gray-600">Processing {previewData.length} contacts</p>
             </div>
-
-            {/* Import Google Sheets */}
-            {importMethod === 'url' && (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="googleSheetUrl">URL du Google Sheet</Label>
-                  <Input
-                    id="googleSheetUrl"
-                    value={googleSheetUrl}
-                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Assurez-vous que le Google Sheet est public ou partagé avec les permissions de lecture
-                  </p>
+          ) : showResults ? (
+            /* Results State */
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                  <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
                 </div>
-                
-                <div className="bg-blue-50 p-4 rounded-md">
-                  <h4 className="font-medium text-blue-900 mb-2">Format requis:</h4>
-                  <p className="text-sm text-blue-800">
-                    Votre Google Sheet doit contenir les colonnes suivantes:
-                  </p>
-                  <div className="text-xs text-blue-700 mt-2 grid grid-cols-2 gap-1">
-                    <span>• firstName</span>
-                    <span>• lastName</span>
-                    <span>• phoneNumber</span>
-                    <span>• email (optionnel)</span>
-                    <span>• campus</span>
-                    <span>• major</span>
-                    <span>• year (1,2,3,4,5,Master,PhD)</span>
-                    <span>• gender (male,female,other,prefer_not_to_say)</span>
-                    <span>• isInterested (true/false)</span>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Import Summary</h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-green-600">{importResults.successful}</div>
+                  <div className="text-sm text-green-700">Successful Imports</div>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold text-red-600">{importResults.failed || "Unknown"}</div>
+                  <div className="text-sm text-red-700">Failed Imports</div>
+                </div>
+              </div>
+
+              {importResults.failed > 0 && (
+                <div className="space-y-4 border-2 p-2 rounded-md">
+                  <h4 className="text-md font-medium text-gray-900">Failed Imports:</h4>
+                  <div className="max-h-60 overflow-y-scroll space-y-2">
+                    {importResults.errors.map((failure, index) => (
+                      <div key={index} className="bg-red-50 border border-red-200 rounded-md p-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-red-800">
+                              Row {failure.index}: {failure.contact.firstName} {failure.contact.lastName}
+                            </p>
+                            <p className="text-xs text-red-600 mt-1">{failure.error}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                <Button
-                  onClick={handleGoogleSheetImport}
-                  disabled={isLoading || !googleSheetUrl.trim()}
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Import en cours...
-                    </>
-                  ) : (
-                    "Importer depuis Google Sheets"
-                  )}
-                </Button>
-              </div>
-            )}
-
+              )}
+            </div>
+          ) : !showPreview ? (
+          <div className="space-y-6">
             {/* Import CSV */}
-            {importMethod === 'csv' && (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="csvFile">Fichier CSV</Label>
-                  <Input
-                    id="csvFile"
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="csvFile">CSV File</Label>
+                <Input
+                  id="csvFile"
                     type="file"
                     accept=".csv"
                     onChange={handleCsvImport}
-                    className="mt-1"
+                    className="mt-1 hover:bg-gray-50 cursor-pointer"
                   />
                 </div>
                 
-                <div className="bg-gray-50 p-4 rounded-md">
-                  <h4 className="font-medium text-gray-900 mb-2">Format CSV requis:</h4>
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <h4 className="font-medium text-gray-900 mb-2">Required CSV format:</h4>
                   <p className="text-sm text-gray-700 mb-2">
-                    La première ligne doit contenir les en-têtes de colonnes:
+                    The first row must contain the column headers (export contacts first to see the exact format):
                   </p>
-                  <code className="text-xs bg-white p-2 rounded border block">
-                    firstName,lastName,phoneNumber,email,campus,major,year,gender,isInterested
+                  <code className="text-xs bg-white p-2 rounded border block break-all">
+                    First Name,Last Name,Email,Phone,Campus,Major,Year,Gender,Interested,Follow-up Status Description,Notes
                   </code>
+                  <p className="text-xs text-gray-600 mt-2">
+                    The "Notes" column is optional. Other columns are required except as noted in export.
+                  </p>
                 </div>
               </div>
-            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -314,45 +263,61 @@ export function ImportContactsDialog({ onImportContacts, trigger }: ImportContac
             )}
           </div>
         ) : (
-          /* Prévisualisation des données */
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">Prévisualisation ({previewData.length} contacts)</h3>
+          /* Data preview */
+          <div className="flex flex-col h-full space-y-4">
+            <div className="flex items-center justify-between flex-shrink-0">
+              <h3 className="text-lg font-medium">Preview ({previewData.length} contacts)</h3>
               <Button variant="outline" size="sm" onClick={resetDialog}>
-                Retour
+                Back
               </Button>
             </div>
             
-            <div className="max-h-96 overflow-y-auto border rounded-md">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nom</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Téléphone</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Campus</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Filière</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Année</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Intéressé</th>
+            <div className="flex-1 min-h-0 overflow-auto border rounded-md">
+              <table className="w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50 sticky top-0 roudned-t-md">
+                  <tr className="rounded-t-md">
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap rounded-tl-md">Name</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Phone</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Campus</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Major</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Year</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Interested</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Status</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap rounded-tr-md">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {previewData.map((contact, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 text-sm text-gray-900">
+                      <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
                         {contact.firstName} {contact.lastName}
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-900">{contact.phoneNumber}</td>
-                      <td className="px-3 py-2 text-sm text-gray-900">{contact.campus}</td>
-                      <td className="px-3 py-2 text-sm text-gray-900">{contact.major}</td>
-                      <td className="px-3 py-2 text-sm text-gray-900">{contact.year}</td>
-                      <td className="px-3 py-2 text-sm">
+                      <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">{contact.phoneNumber}</td>
+                      <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap" title={contact.campus}>
+                        {contact.campus}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap" title={contact.major}>
+                        {contact.major}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">{contact.year}</td>
+                      <td className="px-3 py-2 text-sm whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          contact.isInterested 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
+                          contact.isInterested ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
-                          {contact.isInterested ? 'Oui' : 'Non'}
+                          {contact.isInterested ? 'Yes' : 'No'}
                         </span>
+                      </td>
+                      <td className="px-3 py-2 text-sm whitespace-nowrap">
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800" title={followUpStatuses.find(s => s.number === contact.followUpStatusNumber)?.description || `Status ${contact.followUpStatusNumber || 'Unknown'}`}>
+                          {followUpStatuses.find(s => s.number === contact.followUpStatusNumber)?.description || `Status ${contact.followUpStatusNumber || 'Unknown'}`}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-900 max-w-xs">
+                        <NotesDisplay 
+                          notes={contact.notes} 
+                          contactName={`${contact.firstName} ${contact.lastName}`}
+                          maxPreviewLength={30}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -361,20 +326,30 @@ export function ImportContactsDialog({ onImportContacts, trigger }: ImportContac
             </div>
           </div>
         )}
+        </div>
 
-        <DialogFooter>
-          {showPreview ? (
+        <DialogFooter className="flex-shrink-0">
+          {isLoading ? (
+            <Button disabled className="opacity-50 cursor-not-allowed">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              Importing...
+            </Button>
+          ) : showResults ? (
+            <Button onClick={closeDialog} className="bg-green-600 hover:bg-green-700">
+              Done
+            </Button>
+          ) : showPreview ? (
             <>
-              <Button variant="outline" onClick={resetDialog}>
-                Annuler
+              <Button variant="outline" onClick={resetDialog} disabled={isLoading}>
+                Cancel
               </Button>
-              <Button onClick={confirmImport} className="bg-green-600 hover:bg-green-700">
-                Confirmer l'import ({previewData.length} contacts)
+              <Button onClick={confirmImport} className="bg-green-600 hover:bg-green-700" disabled={isLoading}>
+                Confirm import ({previewData.length} contacts)
               </Button>
             </>
           ) : (
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Fermer
+            <Button variant="outline" onClick={closeDialog}>
+              Close
             </Button>
           )}
         </DialogFooter>

@@ -5,6 +5,9 @@ export { TemplatePreview } from './TemplatePreview'
 export { LoadingState, LoadingSpinner } from './LoadingState'
 export { ErrorAlert } from './ErrorAlert'
 export { SuccessMessage } from './SuccessMessage'
+export { StatCard } from './StatCard'
+export { PageHeader } from './PageHeader'
+export { ContentCard } from './ContentCard'
 
 // shadcn UI components
 export * from './badge'
