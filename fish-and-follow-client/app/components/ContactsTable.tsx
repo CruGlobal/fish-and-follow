@@ -90,6 +90,10 @@ export function ContactsTable({
   };
 
   const startEditing = (contact: Contact, field: keyof Contact) => {
+    // Notes are handled by NotesDisplay component, not inline editing
+    if (field === "notes") {
+      return;
+    }
     setEditingContact({ id: contact.id, field });
     setEditValue(String(contact[field] || ""));
   };
@@ -248,7 +252,7 @@ export function ContactsTable({
         );
       }
 
-      // Champ texte normal
+      // For non-notes fields, use regular input
       return (
         <input
           type="text"
@@ -512,7 +516,9 @@ export function ContactsTable({
                       <NotesDisplay 
                         notes={contact.notes} 
                         contactName={`${contact.firstName} ${contact.lastName}`}
-                        maxPreviewLength={40}
+                        maxPreviewLength={15}
+                        editable={true}
+                        onNotesUpdate={(newNotes) => onUpdateContact(contact.id, { notes: newNotes })}
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

@@ -234,6 +234,7 @@ contactsRouter.post('/', async (req, res) => {
     gender,
     followUpStatusNumber,
     orgId,
+    notes
   } = req.body;
 
   // Ensure orgId is a valid UUID string or use default
@@ -257,6 +258,7 @@ contactsRouter.post('/', async (req, res) => {
         gender,
         followUpStatusNumber,
         orgId: orgIdValue,
+        notes
       })
       .returning();
 
@@ -282,6 +284,7 @@ contactsRouter.put('/:id', async (req, res) => {
     gender,
     followUpStatusNumber,
     orgId,
+    notes,
   } = req.body;
 
   try {
@@ -299,6 +302,7 @@ contactsRouter.put('/:id', async (req, res) => {
         gender,
         followUpStatusNumber,
         orgId,
+        notes
       })
       .where(eq(contact.id, id))
       .returning();

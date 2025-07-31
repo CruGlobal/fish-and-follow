@@ -54,6 +54,7 @@ export const contact = pgTable('contact', {
   gender: GenderEnum('gender').notNull(),
   followUpStatusNumber: integer('follow_up_status').references(() => followUpStatus.number),
   orgId: uuid('org_id').notNull().references(() => organization.id),
+  notes: varchar('notes', { length: 2500 }).default('')
 });
 
 export const followUpStatus = pgTable('follow_up_status', {
