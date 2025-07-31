@@ -22,10 +22,12 @@ import { usersRouter } from './routes/users.router';
 import { Roles } from "./types/roles";
 import { whatsappRouter } from './whatsapp-api/whatsapp.router';
 
+import { contact } from './db/schema';
+
 dotenv.config();
 
 const DATA_FILE = './resources.json';
-const app = express();
+export const app = express();
 const protectedRouter = express.Router();
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -292,6 +294,55 @@ app.use((err: any, req: Request, res: Response, next: any) => {
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
   });
+});
+
+// POST Create contact
+app.post('/contact-submit', async (req, res) => {
+  const {
+    firstName,
+    lastName,
+    phoneNumber,
+    email,
+    campus,
+    major,
+    year,
+    isInterested,
+    gender,
+    followUpStatusNumber,
+    orgId,
+    notes
+  } = req.body;
+
+  // Ensure orgId is a valid UUID string or use default
+  const orgIdValue: string =
+    typeof orgId === 'string' && orgId.length === 36
+      ? orgId
+      : '1f8ff79f-364f-4708-932d-dc6733111759';
+
+  try {
+    const inserted = await db
+      .insert(contact)
+      .values({
+        firstName,
+        lastName,
+        phoneNumber,
+        email,
+        campus,
+        major,
+        year,
+        isInterested,
+        gender,
+        followUpStatusNumber,
+        orgId: orgIdValue,
+        notes
+      })
+      .returning();
+
+    res.status(201).json(inserted[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create contact' });
+  }
 });
 
 app.get('/resources', (_req, res) => {

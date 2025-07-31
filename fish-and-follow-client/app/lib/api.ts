@@ -8,7 +8,10 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `/api${endpoint}`;
+    const publicRoutes = [
+      ["/contact-submit", "POST"]
+    ];
+    const url = publicRoutes.some(([route, method]) => route === endpoint && method === options.method) ? `${endpoint}` : `/api${endpoint}`;
     const config: RequestInit = {
       credentials: 'include', // Include cookies for session-based auth
       headers: {
@@ -39,7 +42,7 @@ class ApiService {
 
   // Contact endpoints
   async submitContact(data: ContactFormData): Promise<Contact> {
-    return this.request<Contact>("/contacts", {
+    return this.request<Contact>("/contact-submit", {
       method: "POST",
       body: JSON.stringify(data),
     });
