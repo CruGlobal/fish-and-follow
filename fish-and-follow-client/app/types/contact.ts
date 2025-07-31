@@ -43,6 +43,7 @@ interface Contact {
   updatedAt?: string;
   followUpStatusNumber: number; // Référence à l'ID du statut de suivi
   followUpStatusDescription?: string;
+  orgId?: string; // Optionnel pour les nouveaux contacts
 }
 
 interface ContactBrief {

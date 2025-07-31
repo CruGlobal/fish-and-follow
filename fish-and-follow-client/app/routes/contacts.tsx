@@ -4,6 +4,7 @@ import { ContactsTable } from "../components/ContactsTable";
 import { AddContactDialog } from "../components/AddContactDialog";
 import { ExportFilterDialog } from "../components/ExportFilterDialog";
 import { useContacts } from "~/hooks/useContacts";
+import { useContactStats } from "~/hooks/useContactStats";
 import { Button } from "../components/ui/button";
 import { StatCard, PageHeader, ContentCard } from "../components/ui";
 import type { Contact } from "~/types/contact";
@@ -29,6 +30,8 @@ export default function Contacts() {
     deleteContact, 
     error 
   } = useContacts();
+
+  const { stats, isLoading: isStatsLoading, error: statsError, refreshStats } = useContactStats();
 
   const handleExport = (filteredContacts: Contact[], format: 'csv' | 'excel') => {
     // Additional validation before actual export
@@ -65,12 +68,13 @@ export default function Contacts() {
     setShowExportDialog(true);
   };
 
-  const stats = {
-    total: contacts.length,
-    interested: contacts.filter(c => c.isInterested).length,
-    notInterested: contacts.filter(c => !c.isInterested).length,
-    maleCount: contacts.filter(c => c.gender === 'male').length,
-    femaleCount: contacts.filter(c => c.gender === 'female').length,
+  // Use server-based stats, with fallback values for loading state
+  const displayStats = stats || {
+    total: 0,
+    interested: 0,
+    notInterested: 0,
+    maleCount: 0,
+    femaleCount: 0,
   };
 
   return (
@@ -86,7 +90,7 @@ export default function Contacts() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <StatCard
             title="Total Contacts"
-            value={stats.total}
+            value={displayStats.total}
             icon={
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -98,8 +102,8 @@ export default function Contacts() {
 
           <StatCard
             title="Interested"
-            value={stats.interested}
-            subtitle={`${stats.total > 0 ? Math.round((stats.interested / stats.total) * 100) : 0}% of total`}
+            value={displayStats.interested}
+            subtitle={`${displayStats.total > 0 ? Math.round((displayStats.interested / displayStats.total) * 100) : 0}% of total`}
             icon={
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -112,8 +116,8 @@ export default function Contacts() {
 
           <StatCard
             title="Not Interested"
-            value={stats.notInterested}
-            subtitle={`${stats.total > 0 ? Math.round((stats.notInterested / stats.total) * 100) : 0}% of total`}
+            value={displayStats.notInterested}
+            subtitle={`${displayStats.total > 0 ? Math.round((displayStats.notInterested / displayStats.total) * 100) : 0}% of total`}
             icon={
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -126,8 +130,8 @@ export default function Contacts() {
 
           <StatCard
             title="Male"
-            value={stats.maleCount}
-            subtitle={`${stats.total > 0 ? Math.round((stats.maleCount / stats.total) * 100) : 0}% of total`}
+            value={displayStats.maleCount}
+            subtitle={`${displayStats.total > 0 ? Math.round((displayStats.maleCount / displayStats.total) * 100) : 0}% of total`}
             icon={
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
@@ -140,8 +144,8 @@ export default function Contacts() {
 
           <StatCard
             title="Female"
-            value={stats.femaleCount}
-            subtitle={`${stats.total > 0 ? Math.round((stats.femaleCount / stats.total) * 100) : 0}% of total`}
+            value={displayStats.femaleCount}
+            subtitle={`${displayStats.total > 0 ? Math.round((displayStats.femaleCount / displayStats.total) * 100) : 0}% of total`}
             icon={
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />

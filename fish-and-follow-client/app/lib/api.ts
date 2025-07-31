@@ -25,6 +25,11 @@ class ApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      // If the response is empty, return an empty object
+      if (response.status === 204) {
+        return {} as T; // Return empty object for 204 No Content
+      }
+
       return await response.json();
     } catch (error) {
       console.error("API request failed:", error);
@@ -75,7 +80,7 @@ class ApiService {
     const allFields = [
       'id', 'firstName', 'lastName', 'phoneNumber', 'email', 
       'campus', 'major', 'year', 'isInterested', 'gender', 
-      'followUpStatusNumber', 'createdAt', 'updatedAt'
+      'followUpStatusNumber', 'createdAt', 'updatedAt', 'notes', 'orgId'
     ];
     
     const params = new URLSearchParams();
