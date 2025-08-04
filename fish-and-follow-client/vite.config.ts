@@ -28,6 +28,7 @@ export default defineConfig({
       '/auth/status': devServer,
       '/signin': devServer,
       '/signout': devServer,
+      '/contact-submit': devServer,
     }
   }
 });

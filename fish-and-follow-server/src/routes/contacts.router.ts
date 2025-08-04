@@ -258,55 +258,6 @@ contactsRouter.get('/:id', async (req, res) => {
   res.json(result[0]);
 });
 
-// POST Create contact
-contactsRouter.post('/', async (req, res) => {
-  const {
-    firstName,
-    lastName,
-    phoneNumber,
-    email,
-    campus,
-    major,
-    year,
-    isInterested,
-    gender,
-    followUpStatusNumber,
-    orgId,
-    notes
-  } = req.body;
-
-  // Ensure orgId is a valid UUID string or use default
-  const orgIdValue: string =
-    typeof orgId === 'string' && orgId.length === 36
-      ? orgId
-      : '1f8ff79f-364f-4708-932d-dc6733111759';
-
-  try {
-    const inserted = await db
-      .insert(contact)
-      .values({
-        firstName,
-        lastName,
-        phoneNumber,
-        email,
-        campus,
-        major,
-        year,
-        isInterested,
-        gender,
-        followUpStatusNumber,
-        orgId: orgIdValue,
-        notes
-      })
-      .returning();
-
-    res.status(201).json(inserted[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create contact' });
-  }
-});
-
 // PUT Update contact
 contactsRouter.put('/:id', async (req, res) => {
   const { id } = req.params;
